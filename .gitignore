@@ -36,3 +36,5 @@ bindings/**/target/
 bindings/**/bin/
 bindings/**/obj/
 bindings/**/node_modules/
+# Debug binaries
+debug_*
