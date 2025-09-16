@@ -9,8 +9,8 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include_directories(include)
 
 # Source files
-set(DICE_SOURCES src/dice.c src/dice_core.c)
-set(DICE_HEADERS include/dice.h include/dice_core.h)
+set(DICE_SOURCES src/dice.c src/parser.c src/eval.c src/trace.c)
+set(DICE_HEADERS include/dice.h)
 
 # Options for different build types
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
@@ -24,12 +24,12 @@ add_library(dice ${DICE_SOURCES} ${DICE_HEADERS})
 set_target_properties(dice PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER "include/dice.h;include/dice_core.h"
+    PUBLIC_HEADER "include/dice.h"
 )
 
 # Create console application
 if(BUILD_CONSOLE_APP)
-    add_executable(roll src/main.c)
+    add_executable(roll src/cli/roll.c)
     target_link_libraries(roll dice)
 endif()
 
