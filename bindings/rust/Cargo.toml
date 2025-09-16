@@ -1,0 +1,9 @@
+[package]
+name = "roll-dice"
+version = "1.0.0"
+edition = "2021"
+description = "Rust bindings for the Roll dice library"
+license = "MIT"
+
+[dependencies]
+libc = "0.2"
