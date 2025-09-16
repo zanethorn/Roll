@@ -1,11 +1,9 @@
 #include "dice.h"
+#include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-
-// Internal functions for parser
-void* arena_alloc(dice_context_t *ctx, size_t size);
 
 // =============================================================================
 // Parser Implementation (EBNF Grammar)
