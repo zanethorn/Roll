@@ -1,0 +1,12 @@
+{
+  "name": "roll-dice",
+  "version": "1.0.0",
+  "description": "Node.js bindings for the Roll dice library",
+  "main": "dice.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": ["dice", "random", "rpg", "games"],
+  "author": "",
+  "license": "MIT"
+}
