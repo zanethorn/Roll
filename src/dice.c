@@ -1,25 +1,24 @@
 #include "dice.h"
+#include "dice_parser.h"
 #include <stdlib.h>
 #include <time.h>
-#include <string.h>
-#include <ctype.h>
 
 #define DICE_VERSION "1.0.0"
 
-static int dice_initialized = 0;
+static dice_rng_t *global_rng = NULL;
 
 void dice_init(uint32_t seed) {
-    if (seed == 0) {
-        seed = (uint32_t)time(NULL);
+    if (global_rng) {
+        dice_free_rng(global_rng);
     }
-    srand(seed);
-    dice_initialized = 1;
+    global_rng = dice_create_default_rng(seed);
 }
 
-static void ensure_initialized(void) {
-    if (!dice_initialized) {
-        dice_init(0);
+static dice_rng_t* ensure_rng_initialized(void) {
+    if (!global_rng) {
+        dice_init(0); // Initialize with time-based seed
     }
+    return global_rng;
 }
 
 int dice_roll(int sides) {
@@ -27,8 +26,12 @@ int dice_roll(int sides) {
         return -1;
     }
     
-    ensure_initialized();
-    return (rand() % sides) + 1;
+    dice_rng_t *rng = ensure_rng_initialized();
+    if (!rng) {
+        return -1;
+    }
+    
+    return rng->roll(rng->state, sides);
 }
 
 int dice_roll_multiple(int count, int sides) {
@@ -36,9 +39,18 @@ int dice_roll_multiple(int count, int sides) {
         return -1;
     }
     
+    dice_rng_t *rng = ensure_rng_initialized();
+    if (!rng) {
+        return -1;
+    }
+    
     int sum = 0;
     for (int i = 0; i < count; i++) {
-        sum += dice_roll(sides);
+        int roll_result = rng->roll(rng->state, sides);
+        if (roll_result < 0) {
+            return -1;
+        }
+        sum += roll_result;
     }
     return sum;
 }
@@ -48,10 +60,19 @@ int dice_roll_individual(int count, int sides, int *results) {
         return -1;
     }
     
+    dice_rng_t *rng = ensure_rng_initialized();
+    if (!rng) {
+        return -1;
+    }
+    
     int sum = 0;
     for (int i = 0; i < count; i++) {
-        results[i] = dice_roll(sides);
-        sum += results[i];
+        int roll_result = rng->roll(rng->state, sides);
+        if (roll_result < 0) {
+            return -1;
+        }
+        results[i] = roll_result;
+        sum += roll_result;
     }
     return sum;
 }
@@ -61,55 +82,32 @@ int dice_roll_notation(const char *dice_notation) {
         return -1;
     }
     
-    // Parse notation like "3d6" or "1d20+5" or "2d8-1"
-    int count = 0, sides = 0, modifier = 0;
-    char *endptr;
-    const char *ptr = dice_notation;
-    
-    // Skip whitespace
-    while (isspace(*ptr)) ptr++;
-    
-    // Parse count
-    count = (int)strtol(ptr, &endptr, 10);
-    if (ptr == endptr || count <= 0) {
-        return -1;
-    }
-    ptr = endptr;
-    
-    // Expect 'd' or 'D'
-    if (*ptr != 'd' && *ptr != 'D') {
-        return -1;
-    }
-    ptr++;
-    
-    // Parse sides
-    sides = (int)strtol(ptr, &endptr, 10);
-    if (ptr == endptr || sides <= 0) {
-        return -1;
-    }
-    ptr = endptr;
-    
-    // Parse optional modifier
-    while (isspace(*ptr)) ptr++;
-    if (*ptr == '+' || *ptr == '-') {
-        char op = *ptr++;
-        modifier = (int)strtol(ptr, &endptr, 10);
-        if (ptr != endptr) {
-            if (op == '-') {
-                modifier = -modifier;
-            }
-        }
-    }
-    
-    // Roll the dice
-    int result = dice_roll_multiple(count, sides);
-    if (result < 0) {
+    dice_rng_t *rng = ensure_rng_initialized();
+    if (!rng) {
         return -1;
     }
     
-    return result + modifier;
+    // Use the new EBNF parser
+    dice_eval_result_t result = dice_parse_and_evaluate(dice_notation, rng);
+    
+    if (result.error) {
+        return -1;
+    }
+    
+    return result.value;
 }
 
 const char* dice_version(void) {
     return DICE_VERSION;
+}
+
+void dice_set_rng(dice_rng_t *rng) {
+    if (global_rng) {
+        dice_free_rng(global_rng);
+    }
+    global_rng = rng;
+}
+
+dice_rng_t* dice_get_rng(void) {
+    return ensure_rng_initialized();
 }

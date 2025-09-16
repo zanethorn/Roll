@@ -9,8 +9,8 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include_directories(include)
 
 # Source files
-set(DICE_SOURCES src/dice.c)
-set(DICE_HEADERS include/dice.h)
+set(DICE_SOURCES src/dice.c src/dice_parser.c)
+set(DICE_HEADERS include/dice.h include/dice_parser.h)
 
 # Options for different build types
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
@@ -24,7 +24,7 @@ add_library(dice ${DICE_SOURCES} ${DICE_HEADERS})
 set_target_properties(dice PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER "include/dice.h"
+    PUBLIC_HEADER "include/dice.h;include/dice_parser.h"
 )
 
 # Create console application

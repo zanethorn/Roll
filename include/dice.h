@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include "dice_parser.h"
 
 /**
  * @brief Initialize the dice library with a seed for random number generation
@@ -39,6 +40,7 @@ int dice_roll_individual(int count, int sides, int *results);
 
 /**
  * @brief Roll dice using standard RPG notation (e.g., "3d6", "1d20+5")
+ * Uses the new EBNF parser with full expression support
  * @param dice_notation String representing dice notation
  * @return Result of the dice roll, or -1 on error
  */
@@ -49,6 +51,19 @@ int dice_roll_notation(const char *dice_notation);
  * @return Version string
  */
 const char* dice_version(void);
+
+/**
+ * @brief Set a custom RNG for the library (optional)
+ * If not set, uses the default system RNG
+ * @param rng Custom RNG instance
+ */
+void dice_set_rng(dice_rng_t *rng);
+
+/**
+ * @brief Get the current RNG instance
+ * @return Current RNG instance
+ */
+dice_rng_t* dice_get_rng(void);
 
 #ifdef __cplusplus
 }

@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include "dice.h"
+#include "dice_parser.h"
 
 // Simple test framework macros
 #define TEST_ASSERT(condition, message) \
@@ -130,6 +131,27 @@ int test_dice_roll_notation() {
     result = dice_roll_notation("1D6");
     TEST_ASSERT(result >= 1 && result <= 6, "dice_roll_notation('1D6') returns value between 1 and 6");
     
+    // Test complex expressions (new EBNF parser features)
+    result = dice_roll_notation("2*3");
+    TEST_ASSERT(result == 6, "dice_roll_notation('2*3') returns 6");
+    
+    result = dice_roll_notation("10/2");
+    TEST_ASSERT(result == 5, "dice_roll_notation('10/2') returns 5");
+    
+    result = dice_roll_notation("(2+3)*4");
+    TEST_ASSERT(result == 20, "dice_roll_notation('(2+3)*4') returns 20");
+    
+    result = dice_roll_notation("-5+10");
+    TEST_ASSERT(result == 5, "dice_roll_notation('-5+10') returns 5");
+    
+    // Test dice in complex expressions
+    result = dice_roll_notation("2d6+1d4");
+    TEST_ASSERT(result >= 3 && result <= 16, "dice_roll_notation('2d6+1d4') returns value between 3 and 16");
+    
+    // Test d without count (should default to 1)
+    result = dice_roll_notation("d6");
+    TEST_ASSERT(result >= 1 && result <= 6, "dice_roll_notation('d6') returns value between 1 and 6");
+    
     // Test invalid notation
     result = dice_roll_notation(NULL);
     TEST_ASSERT(result == -1, "dice_roll_notation(NULL) returns -1");
@@ -137,8 +159,49 @@ int test_dice_roll_notation() {
     result = dice_roll_notation("invalid");
     TEST_ASSERT(result == -1, "dice_roll_notation('invalid') returns -1");
     
-    result = dice_roll_notation("d6");
-    TEST_ASSERT(result == -1, "dice_roll_notation('d6') returns -1");
+    result = dice_roll_notation("10/0");
+    TEST_ASSERT(result == -1, "dice_roll_notation('10/0') returns -1 (division by zero)");
+    
+    return 1;
+}
+
+int test_parser_api() {
+    dice_rng_t *rng = dice_create_default_rng(12345);
+    TEST_ASSERT(rng != NULL, "dice_create_default_rng() returns non-null");
+    
+    // Test parsing and evaluation
+    dice_eval_result_t result = dice_parse_and_evaluate("3d6+2", rng);
+    TEST_ASSERT(!result.error, "dice_parse_and_evaluate('3d6+2') succeeds");
+    TEST_ASSERT(result.value >= 5 && result.value <= 20, "dice_parse_and_evaluate('3d6+2') returns value between 5 and 20");
+    
+    // Test parse error
+    result = dice_parse_and_evaluate("invalid", rng);
+    TEST_ASSERT(result.error, "dice_parse_and_evaluate('invalid') returns error");
+    
+    // Test complex expression
+    result = dice_parse_and_evaluate("2*(1d6+3)", rng);
+    TEST_ASSERT(!result.error, "dice_parse_and_evaluate('2*(1d6+3)') succeeds");
+    TEST_ASSERT(result.value >= 8 && result.value <= 18, "dice_parse_and_evaluate('2*(1d6+3)') returns value between 8 and 18");
+    
+    dice_free_rng(rng);
+    return 1;
+}
+
+int test_rng_decoupling() {
+    // Test that we can use custom RNG
+    dice_rng_t *custom_rng = dice_create_default_rng(54321);
+    TEST_ASSERT(custom_rng != NULL, "Custom RNG creation succeeds");
+    
+    dice_set_rng(custom_rng);
+    dice_rng_t *current_rng = dice_get_rng();
+    TEST_ASSERT(current_rng == custom_rng, "dice_get_rng() returns the custom RNG we set");
+    
+    // Test that dice operations use the custom RNG
+    int result1 = dice_roll(6);
+    TEST_ASSERT(result1 >= 1 && result1 <= 6, "dice_roll() with custom RNG works");
+    
+    // Reset to default to avoid affecting other tests
+    dice_init(12345);
     
     return 1;
 }
@@ -152,6 +215,8 @@ int main() {
     RUN_TEST(test_dice_roll_multiple);
     RUN_TEST(test_dice_roll_individual);
     RUN_TEST(test_dice_roll_notation);
+    RUN_TEST(test_parser_api);
+    RUN_TEST(test_rng_decoupling);
     
     printf("All tests passed!\n");
     return 0;
