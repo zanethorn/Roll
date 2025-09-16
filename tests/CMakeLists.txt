@@ -1,8 +1,37 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Simple test framework - just basic functions
+# Test executables - organized by functionality
+add_executable(test_dice_core test_dice_core.c)
+target_link_libraries(test_dice_core dice)
+
+add_executable(test_parser test_parser.c)
+target_link_libraries(test_parser dice)
+
+add_executable(test_eval test_eval.c)
+target_link_libraries(test_eval dice)
+
+add_executable(test_trace test_trace.c)
+target_link_libraries(test_trace dice)
+
+add_executable(test_rng test_rng.c)
+target_link_libraries(test_rng dice)
+
+add_executable(test_memory test_memory.c)
+target_link_libraries(test_memory dice)
+
+add_executable(test_integration test_integration.c)
+target_link_libraries(test_integration dice)
+
+# Legacy test (kept for backwards compatibility)
 add_executable(test_dice test_dice.c)
 target_link_libraries(test_dice dice)
 
-# Add the test
-add_test(NAME dice_tests COMMAND test_dice)
+# Add all tests
+add_test(NAME dice_core_tests COMMAND test_dice_core)
+add_test(NAME parser_tests COMMAND test_parser)
+add_test(NAME eval_tests COMMAND test_eval)
+add_test(NAME trace_tests COMMAND test_trace)
+add_test(NAME rng_tests COMMAND test_rng)
+add_test(NAME memory_tests COMMAND test_memory)
+add_test(NAME integration_tests COMMAND test_integration)
+add_test(NAME legacy_dice_tests COMMAND test_dice)
