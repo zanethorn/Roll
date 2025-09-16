@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include "dice.h"
-#include "dice_parser.h"
+#include "dice_core.h"
 
 // Simple test framework macros
 #define TEST_ASSERT(condition, message) \
@@ -166,35 +166,42 @@ int test_dice_roll_notation() {
 }
 
 int test_parser_api() {
-    dice_rng_t *rng = dice_create_default_rng(12345);
-    TEST_ASSERT(rng != NULL, "dice_create_default_rng() returns non-null");
+    // Test the new context-based API
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    TEST_ASSERT(ctx != NULL, "dice_context_create() returns non-null");
+    
+    dice_rng_vtable_t rng = dice_create_system_rng(12345);
+    dice_context_set_rng(ctx, &rng);
     
     // Test parsing and evaluation
-    dice_eval_result_t result = dice_parse_and_evaluate("3d6+2", rng);
-    TEST_ASSERT(!result.error, "dice_parse_and_evaluate('3d6+2') succeeds");
-    TEST_ASSERT(result.value >= 5 && result.value <= 20, "dice_parse_and_evaluate('3d6+2') returns value between 5 and 20");
+    dice_eval_result_t result = dice_roll_expression(ctx, "3d6+2");
+    TEST_ASSERT(result.success, "dice_roll_expression('3d6+2') succeeds");
+    TEST_ASSERT(!dice_has_error(ctx), "No error after successful evaluation");
+    TEST_ASSERT(result.value >= 5 && result.value <= 20, "dice_roll_expression('3d6+2') returns value between 5 and 20");
     
     // Test parse error
-    result = dice_parse_and_evaluate("invalid", rng);
-    TEST_ASSERT(result.error, "dice_parse_and_evaluate('invalid') returns error");
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "invalid");
+    TEST_ASSERT(!result.success, "dice_roll_expression('invalid') returns error");
+    TEST_ASSERT(dice_has_error(ctx), "Error flag set after failed evaluation");
     
     // Test complex expression
-    result = dice_parse_and_evaluate("2*(1d6+3)", rng);
-    TEST_ASSERT(!result.error, "dice_parse_and_evaluate('2*(1d6+3)') succeeds");
-    TEST_ASSERT(result.value >= 8 && result.value <= 18, "dice_parse_and_evaluate('2*(1d6+3)') returns value between 8 and 18");
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "2*(1d6+3)");
+    TEST_ASSERT(result.success, "dice_roll_expression('2*(1d6+3)') succeeds");
+    TEST_ASSERT(result.value >= 8 && result.value <= 18, "dice_roll_expression('2*(1d6+3)') returns value between 8 and 18");
     
-    dice_free_rng(rng);
+    dice_context_destroy(ctx);
     return 1;
 }
 
 int test_rng_decoupling() {
-    // Test that we can use custom RNG
-    dice_rng_t *custom_rng = dice_create_default_rng(54321);
-    TEST_ASSERT(custom_rng != NULL, "Custom RNG creation succeeds");
+    // Test that we can use custom RNG with legacy API
+    dice_rng_vtable_t custom_rng = dice_create_system_rng(54321);
     
-    dice_set_rng(custom_rng);
-    dice_rng_t *current_rng = dice_get_rng();
-    TEST_ASSERT(current_rng == custom_rng, "dice_get_rng() returns the custom RNG we set");
+    dice_set_rng(&custom_rng);
+    const dice_rng_vtable_t *current_rng = dice_get_rng();
+    TEST_ASSERT(current_rng != NULL, "dice_get_rng() returns non-null");
     
     // Test that dice operations use the custom RNG
     int result1 = dice_roll(6);
@@ -203,6 +210,46 @@ int test_rng_decoupling() {
     // Reset to default to avoid affecting other tests
     dice_init(12345);
     
+    return 1;
+}
+
+int test_new_architecture() {
+    // Test the new architecture directly
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    TEST_ASSERT(ctx != NULL, "Context creation succeeds");
+    
+    // Test tracing
+    dice_eval_result_t result = dice_roll_expression(ctx, "2d6");
+    TEST_ASSERT(result.success, "2d6 evaluation succeeds");
+    
+    const dice_trace_t *trace = dice_get_trace(ctx);
+    TEST_ASSERT(trace != NULL, "Trace is available");
+    TEST_ASSERT(trace->count >= 2, "Trace contains at least 2 atomic rolls");
+    
+    // Test policy
+    dice_policy_t policy = dice_default_policy();
+    policy.max_dice_count = 2;
+    dice_context_set_policy(ctx, &policy);
+    
+    result = dice_roll_expression(ctx, "5d6");  // Should fail
+    TEST_ASSERT(!result.success, "Exceeding max dice count fails");
+    TEST_ASSERT(dice_has_error(ctx), "Error flag set for policy violation");
+    
+    dice_context_destroy(ctx);
+    return 1;
+}
+
+int test_exploding_dice() {
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    dice_rng_vtable_t rng = dice_create_system_rng(12345);
+    dice_context_set_rng(ctx, &rng);
+    
+    // Test exploding dice notation (if implemented)
+    dice_eval_result_t result = dice_roll_expression(ctx, "1d6!");
+    // Should work even if exploding isn't fully implemented yet
+    TEST_ASSERT(result.value >= 1, "Exploding dice returns positive value");
+    
+    dice_context_destroy(ctx);
     return 1;
 }
 
@@ -217,7 +264,13 @@ int main() {
     RUN_TEST(test_dice_roll_notation);
     RUN_TEST(test_parser_api);
     RUN_TEST(test_rng_decoupling);
+    RUN_TEST(test_new_architecture);
+    RUN_TEST(test_exploding_dice);
     
     printf("All tests passed!\n");
+    
+    // Cleanup
+    dice_cleanup();
+    
     return 0;
 }

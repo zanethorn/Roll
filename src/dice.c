@@ -1,113 +1,111 @@
 #include "dice.h"
-#include "dice_parser.h"
 #include <stdlib.h>
-#include <time.h>
+#include <string.h>
 
-#define DICE_VERSION "1.0.0"
+#define DICE_VERSION "2.0.0"
 
-static dice_rng_t *global_rng = NULL;
+// Global context for backward compatibility (not thread-safe, but maintains API compatibility)
+static dice_context_t *legacy_context = NULL;
 
-void dice_init(uint32_t seed) {
-    if (global_rng) {
-        dice_free_rng(global_rng);
+static dice_context_t* get_legacy_context(void) {
+    if (!legacy_context) {
+        // Create a default context with 1MB arena and all features
+        legacy_context = dice_context_create(1024 * 1024, DICE_FEATURE_ALL);
     }
-    global_rng = dice_create_default_rng(seed);
+    return legacy_context;
 }
 
-static dice_rng_t* ensure_rng_initialized(void) {
-    if (!global_rng) {
-        dice_init(0); // Initialize with time-based seed
-    }
-    return global_rng;
+void dice_init(uint32_t seed) {
+    dice_context_t *ctx = get_legacy_context();
+    if (!ctx) return;
+    
+    // Set system RNG with specified seed
+    dice_rng_vtable_t rng = dice_create_system_rng(seed ? seed : 0);
+    dice_context_set_rng(ctx, &rng);
 }
 
 int dice_roll(int sides) {
-    if (sides <= 0) {
-        return -1;
-    }
+    if (sides <= 0) return -1;
     
-    dice_rng_t *rng = ensure_rng_initialized();
-    if (!rng) {
-        return -1;
-    }
+    dice_context_t *ctx = get_legacy_context();
+    if (!ctx) return -1;
     
-    return rng->roll(rng->state, sides);
+    return ctx->rng.roll(ctx->rng.state, sides);
 }
 
 int dice_roll_multiple(int count, int sides) {
-    if (count <= 0 || sides <= 0) {
-        return -1;
-    }
+    if (count <= 0 || sides <= 0) return -1;
     
-    dice_rng_t *rng = ensure_rng_initialized();
-    if (!rng) {
-        return -1;
-    }
+    dice_context_t *ctx = get_legacy_context();
+    if (!ctx) return -1;
     
     int sum = 0;
     for (int i = 0; i < count; i++) {
-        int roll_result = rng->roll(rng->state, sides);
-        if (roll_result < 0) {
-            return -1;
-        }
-        sum += roll_result;
+        int roll = ctx->rng.roll(ctx->rng.state, sides);
+        if (roll < 0) return -1;
+        sum += roll;
     }
     return sum;
 }
 
 int dice_roll_individual(int count, int sides, int *results) {
-    if (count <= 0 || sides <= 0 || results == NULL) {
-        return -1;
-    }
+    if (count <= 0 || sides <= 0 || !results) return -1;
     
-    dice_rng_t *rng = ensure_rng_initialized();
-    if (!rng) {
-        return -1;
-    }
+    dice_context_t *ctx = get_legacy_context();
+    if (!ctx) return -1;
     
     int sum = 0;
     for (int i = 0; i < count; i++) {
-        int roll_result = rng->roll(rng->state, sides);
-        if (roll_result < 0) {
-            return -1;
-        }
-        results[i] = roll_result;
-        sum += roll_result;
+        int roll = ctx->rng.roll(ctx->rng.state, sides);
+        if (roll < 0) return -1;
+        results[i] = roll;
+        sum += roll;
     }
     return sum;
 }
 
 int dice_roll_notation(const char *dice_notation) {
-    if (dice_notation == NULL) {
+    if (!dice_notation) return -1;
+    
+    dice_context_t *ctx = get_legacy_context();
+    if (!ctx) return -1;
+    
+    // Clear any previous errors
+    dice_clear_error(ctx);
+    
+    // Use the new architecture
+    dice_eval_result_t result = dice_roll_expression(ctx, dice_notation);
+    
+    if (!result.success || dice_has_error(ctx)) {
         return -1;
     }
     
-    dice_rng_t *rng = ensure_rng_initialized();
-    if (!rng) {
-        return -1;
-    }
-    
-    // Use the new EBNF parser
-    dice_eval_result_t result = dice_parse_and_evaluate(dice_notation, rng);
-    
-    if (result.error) {
-        return -1;
-    }
-    
-    return result.value;
+    return (int)result.value;
 }
 
 const char* dice_version(void) {
     return DICE_VERSION;
 }
 
-void dice_set_rng(dice_rng_t *rng) {
-    if (global_rng) {
-        dice_free_rng(global_rng);
-    }
-    global_rng = rng;
+void dice_set_rng(const dice_rng_vtable_t *rng_vtable) {
+    if (!rng_vtable) return;
+    
+    dice_context_t *ctx = get_legacy_context();
+    if (!ctx) return;
+    
+    dice_context_set_rng(ctx, rng_vtable);
 }
 
-dice_rng_t* dice_get_rng(void) {
-    return ensure_rng_initialized();
+const dice_rng_vtable_t* dice_get_rng(void) {
+    dice_context_t *ctx = get_legacy_context();
+    if (!ctx) return NULL;
+    
+    return &ctx->rng;
+}
+
+void dice_cleanup(void) {
+    if (legacy_context) {
+        dice_context_destroy(legacy_context);
+        legacy_context = NULL;
+    }
 }
