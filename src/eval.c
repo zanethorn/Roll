@@ -61,7 +61,7 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
         }
         
         case DICE_NODE_DICE_OP: {
-            // Evaluate count and sides
+            // Evaluate count
             int64_t count = 1;
             if (node->data.dice_op.count) {
                 dice_eval_result_t count_result = dice_evaluate(ctx, node->data.dice_op.count);
@@ -69,21 +69,10 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
                 count = count_result.value;
             }
             
-            dice_eval_result_t sides_result = dice_evaluate(ctx, node->data.dice_op.sides);
-            if (!sides_result.success) return sides_result;
-            int64_t sides = sides_result.value;
-            
             // Validation
             if (count <= 0) {
                 snprintf(ctx->error.message, sizeof(ctx->error.message),
                         "Dice count must be positive, got %lld", (long long)count);
-                ctx->error.has_error = true;
-                return result;
-            }
-            
-            if (sides <= 0) {
-                snprintf(ctx->error.message, sizeof(ctx->error.message),
-                        "Dice sides must be positive, got %lld", (long long)sides);
                 ctx->error.has_error = true;
                 return result;
             }
@@ -96,29 +85,91 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
                 return result;
             }
             
-            if (sides > ctx->policy.max_sides) {
-                snprintf(ctx->error.message, sizeof(ctx->error.message),
-                        "Too many sides: %lld exceeds limit of %d", 
-                        (long long)sides, ctx->policy.max_sides);
-                ctx->error.has_error = true;
-                return result;
-            }
-            
-            // Roll dice
             int64_t sum = 0;
-            for (int i = 0; i < count; i++) {
-                int roll = ctx->rng.roll(ctx->rng.state, (int)sides);
-                if (roll < 0) {
+            
+            if (node->data.dice_op.dice_type == DICE_DICE_CUSTOM) {
+                // Handle custom dice
+                const dice_custom_die_t *custom_die = NULL;
+                
+                if (node->data.dice_op.custom_die) {
+                    // Inline custom die
+                    custom_die = node->data.dice_op.custom_die;
+                } else if (node->data.dice_op.custom_name) {
+                    // Named custom die - look up in registry
+                    custom_die = dice_lookup_custom_die(ctx, node->data.dice_op.custom_name);
+                    if (!custom_die) {
+                        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                                "Unknown custom die: %s", node->data.dice_op.custom_name);
+                        ctx->error.has_error = true;
+                        return result;
+                    }
+                } else {
                     snprintf(ctx->error.message, sizeof(ctx->error.message),
-                            "RNG error during dice roll");
+                            "Custom die has no definition or name");
                     ctx->error.has_error = true;
                     return result;
                 }
                 
-                // Add to trace
-                trace_atomic_roll(ctx, (int)sides, roll);
+                if (custom_die->side_count == 0) {
+                    snprintf(ctx->error.message, sizeof(ctx->error.message),
+                            "Custom die has no sides");
+                    ctx->error.has_error = true;
+                    return result;
+                }
                 
-                sum += roll;
+                // Roll custom dice
+                for (int i = 0; i < count; i++) {
+                    // Generate random index for the side
+                    uint64_t rand_val = ctx->rng.rand(ctx->rng.state, custom_die->side_count);
+                    if (rand_val >= custom_die->side_count) {
+                        // Fallback to simple modulo if rand function misbehaves
+                        rand_val = rand_val % custom_die->side_count;
+                    }
+                    
+                    int64_t roll_value = custom_die->sides[rand_val].value;
+                    
+                    // Add to trace (use side count as "sides" for tracing purposes)
+                    trace_atomic_roll(ctx, (int)custom_die->side_count, (int)roll_value);
+                    
+                    sum += roll_value;
+                }
+                
+            } else {
+                // Handle standard dice
+                dice_eval_result_t sides_result = dice_evaluate(ctx, node->data.dice_op.sides);
+                if (!sides_result.success) return sides_result;
+                int64_t sides = sides_result.value;
+                
+                if (sides <= 0) {
+                    snprintf(ctx->error.message, sizeof(ctx->error.message),
+                            "Dice sides must be positive, got %lld", (long long)sides);
+                    ctx->error.has_error = true;
+                    return result;
+                }
+                
+                if (sides > ctx->policy.max_sides) {
+                    snprintf(ctx->error.message, sizeof(ctx->error.message),
+                            "Too many sides: %lld exceeds limit of %d", 
+                            (long long)sides, ctx->policy.max_sides);
+                    ctx->error.has_error = true;
+                    return result;
+                }
+                
+                // Roll standard dice
+                for (int i = 0; i < count; i++) {
+                    int roll = ctx->rng.roll(ctx->rng.state, (int)sides);
+                    if (roll < 0) {
+                        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                                "RNG error during dice roll");
+                        ctx->error.has_error = true;
+                        return result;
+                    }
+                    
+                    // Add to trace
+                    trace_atomic_roll(ctx, (int)sides, roll);
+                    
+                    sum += roll;
+                }
             }
             
             result.value = sum;

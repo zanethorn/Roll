@@ -35,6 +35,11 @@ static dice_ast_node_t* create_node(dice_context_t *ctx, dice_node_type_t type) 
     dice_ast_node_t *node = arena_alloc(ctx, sizeof(dice_ast_node_t));
     if (node) {
         node->type = type;
+        // Initialize custom dice fields
+        if (type == DICE_NODE_DICE_OP) {
+            node->data.dice_op.custom_name = NULL;
+            node->data.dice_op.custom_die = NULL;
+        }
     }
     return node;
 }
@@ -45,6 +50,149 @@ static dice_ast_node_t* parse_sum(parser_state_t *state);
 static dice_ast_node_t* parse_product(parser_state_t *state);
 static dice_ast_node_t* parse_unary(parser_state_t *state);
 static dice_ast_node_t* parse_primary(parser_state_t *state);
+static dice_custom_die_t* parse_custom_die_definition(parser_state_t *state);
+
+static dice_custom_die_t* parse_custom_die_definition(parser_state_t *state) {
+    skip_whitespace(state);
+    
+    if (*state->pos != '{') {
+        return NULL;
+    }
+    
+    state->pos++; // consume '{'
+    skip_whitespace(state);
+    
+    // Count how many sides we'll have
+    const char *temp_pos = state->pos;
+    size_t side_count = 0;
+    
+    // Quick scan to count sides
+    while (*temp_pos && *temp_pos != '}') {
+        if (*temp_pos == ',' || (*temp_pos != ' ' && *temp_pos != '\t' && *temp_pos != '\n')) {
+            if (*temp_pos != ',') side_count++;
+        }
+        if (*temp_pos == ',') side_count++;
+        temp_pos++;
+    }
+    if (side_count == 0) side_count = 1; // At least one side
+    
+    // Allocate custom die
+    dice_custom_die_t *custom_die = arena_alloc(state->ctx, sizeof(dice_custom_die_t));
+    if (!custom_die) return NULL;
+    
+    custom_die->sides = arena_alloc(state->ctx, side_count * sizeof(dice_custom_side_t));
+    if (!custom_die->sides) return NULL;
+    
+    custom_die->name = NULL; // Inline die has no name
+    custom_die->side_count = 0;
+    custom_die->uniform_distribution = true;
+    
+    // Parse sides
+    while (*state->pos && *state->pos != '}') {
+        skip_whitespace(state);
+        
+        int64_t value = 0;
+        const char *label = NULL;
+        
+        // Check if it's a number
+        if (is_digit(*state->pos) || *state->pos == '-') {
+            // Parse numeric value
+            bool negative = false;
+            if (*state->pos == '-') {
+                negative = true;
+                state->pos++;
+            }
+            
+            while (is_digit(*state->pos)) {
+                value = value * 10 + (*state->pos - '0');
+                state->pos++;
+            }
+            
+            if (negative) value = -value;
+            
+            skip_whitespace(state);
+            
+            // Check for label after colon
+            if (*state->pos == ':') {
+                state->pos++; // consume ':'
+                skip_whitespace(state);
+                
+                if (*state->pos == '"') {
+                    // Parse quoted string label
+                    state->pos++; // consume opening quote
+                    const char *start = state->pos;
+                    while (*state->pos && *state->pos != '"') {
+                        state->pos++;
+                    }
+                    if (*state->pos == '"') {
+                        size_t len = state->pos - start;
+                        char *label_copy = arena_alloc(state->ctx, len + 1);
+                        if (label_copy) {
+                            memcpy(label_copy, start, len);
+                            label_copy[len] = '\0';
+                            label = label_copy;
+                        }
+                        state->pos++; // consume closing quote
+                    }
+                }
+            }
+        } else if (*state->pos == '"') {
+            // Quoted string without explicit value - use index as value
+            value = custom_die->side_count; // 0-based indexing
+            
+            state->pos++; // consume opening quote
+            const char *start = state->pos;
+            while (*state->pos && *state->pos != '"') {
+                state->pos++;
+            }
+            if (*state->pos == '"') {
+                size_t len = state->pos - start;
+                char *label_copy = arena_alloc(state->ctx, len + 1);
+                if (label_copy) {
+                    memcpy(label_copy, start, len);
+                    label_copy[len] = '\0';
+                    label = label_copy;
+                }
+                state->pos++; // consume closing quote
+            }
+        } else {
+            // Invalid syntax
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected number or quoted string in custom die definition");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        // Add the side
+        if (custom_die->side_count < side_count) {
+            custom_die->sides[custom_die->side_count].value = value;
+            custom_die->sides[custom_die->side_count].label = label;
+            custom_die->side_count++;
+        }
+        
+        skip_whitespace(state);
+        
+        // Check for comma or end
+        if (*state->pos == ',') {
+            state->pos++; // consume comma
+        } else if (*state->pos != '}') {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected ',' or '}' in custom die definition");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+    }
+    
+    if (*state->pos != '}') {
+        snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                "Expected closing '}' in custom die definition");
+        state->ctx->error.has_error = true;
+        return NULL;
+    }
+    
+    state->pos++; // consume '}'
+    return custom_die;
+}
 
 static dice_ast_node_t* parse_number(parser_state_t *state) {
     skip_whitespace(state);
@@ -93,23 +241,57 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         return NULL;
     }
     
-    // Parse sides - use primary to avoid consuming too much
-    dice_ast_node_t *sides = parse_number(state);
-    if (!sides) {
-        snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
-                "Expected number of sides after 'd'");
-        state->ctx->error.has_error = true;
-        return NULL;
-    }
+    skip_whitespace(state);
     
-    // Create dice node
     dice_ast_node_t *node = create_node(state->ctx, DICE_NODE_DICE_OP);
     if (!node) return NULL;
     
-    node->data.dice_op.dice_type = DICE_DICE_BASIC;
     node->data.dice_op.count = count;
-    node->data.dice_op.sides = sides;
     node->data.dice_op.modifier = NULL;
+    
+    // Check for custom die syntax
+    if (*state->pos == '{') {
+        // Inline custom die definition: 1d{-1,0,1}
+        dice_custom_die_t *custom_die = parse_custom_die_definition(state);
+        if (!custom_die) return NULL;
+        
+        node->data.dice_op.dice_type = DICE_DICE_CUSTOM;
+        node->data.dice_op.sides = NULL;
+        node->data.dice_op.custom_die = custom_die;
+        node->data.dice_op.custom_name = NULL;
+        
+    } else if (is_letter(*state->pos)) {
+        // Named custom die: 1dF
+        const char *name_start = state->pos;
+        while (is_letter(*state->pos) || is_digit(*state->pos)) {
+            state->pos++;
+        }
+        
+        size_t name_len = state->pos - name_start;
+        char *name = arena_alloc(state->ctx, name_len + 1);
+        if (!name) return NULL;
+        
+        memcpy(name, name_start, name_len);
+        name[name_len] = '\0';
+        
+        node->data.dice_op.dice_type = DICE_DICE_CUSTOM;
+        node->data.dice_op.sides = NULL;
+        node->data.dice_op.custom_die = NULL;
+        node->data.dice_op.custom_name = name;
+        
+    } else {
+        // Standard numeric sides
+        dice_ast_node_t *sides = parse_number(state);
+        if (!sides) {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected number of sides, custom die name, or custom die definition after 'd'");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        node->data.dice_op.dice_type = DICE_DICE_BASIC;
+        node->data.dice_op.sides = sides;
+    }
     
     return node;
 }

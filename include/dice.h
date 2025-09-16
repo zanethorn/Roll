@@ -65,8 +65,36 @@ typedef enum {
     DICE_DICE_KEEP_HIGH, // NdSkhN
     DICE_DICE_KEEP_LOW,  // NdSklN
     DICE_DICE_DROP_HIGH, // NdSdhN
-    DICE_DICE_DROP_LOW   // NdSdlN
+    DICE_DICE_DROP_LOW,  // NdSdlN
+    DICE_DICE_CUSTOM     // Custom dice (NdCUSTOM or Nd{...})
 } dice_dice_type_t;
+
+/**
+ * @brief Custom die side definition
+ */
+typedef struct dice_custom_side {
+    int64_t value;          // Numeric value for calculations
+    const char *label;      // String label (optional, can be NULL)
+} dice_custom_side_t;
+
+/**
+ * @brief Custom die definition
+ */
+typedef struct dice_custom_die {
+    const char *name;              // Die name (for named dice like "F", "HQ", etc.)
+    dice_custom_side_t *sides;     // Array of side definitions
+    size_t side_count;             // Number of sides
+    bool uniform_distribution;     // Whether all sides have equal probability
+} dice_custom_die_t;
+
+/**
+ * @brief Custom die registry for storing named custom dice
+ */
+typedef struct dice_custom_die_registry {
+    dice_custom_die_t *dice;    // Array of custom dice definitions
+    size_t count;               // Number of registered dice
+    size_t capacity;            // Maximum capacity
+} dice_custom_die_registry_t;
 
 /**
  * @brief AST node structure - tagged union
@@ -86,9 +114,12 @@ struct dice_ast_node {
         
         struct {
             dice_dice_type_t dice_type;
-            dice_ast_node_t *count;     // number of dice (can be expression)
-            dice_ast_node_t *sides;     // sides per die (can be expression)
-            dice_ast_node_t *modifier;  // keep/drop count, explosion threshold, etc.
+            dice_ast_node_t *count;      // number of dice (can be expression)
+            dice_ast_node_t *sides;      // sides per die (can be expression, or NULL for custom)
+            dice_ast_node_t *modifier;   // keep/drop count, explosion threshold, etc.
+            // Custom dice support
+            const char *custom_name;     // Name for named custom dice (e.g., "F", "HQ")
+            dice_custom_die_t *custom_die; // Inline custom die definition
         } dice_op;
         
         struct {
@@ -216,6 +247,9 @@ struct dice_context {
     
     // RNG vtable
     dice_rng_vtable_t rng;
+    
+    // Custom dice registry
+    dice_custom_die_registry_t custom_dice;
 };
 
 /**
@@ -430,6 +464,43 @@ dice_rng_vtable_t dice_create_xoshiro_rng(uint64_t seed);
  * @return Default policy struct
  */
 dice_policy_t dice_default_policy(void);
+
+// =============================================================================
+// Custom Dice API
+// =============================================================================
+
+/**
+ * @brief Register a named custom die
+ * @param ctx Context handle
+ * @param name Die name (e.g., "F" for FATE dice)
+ * @param sides Array of side definitions
+ * @param side_count Number of sides
+ * @return 0 on success, -1 on error
+ */
+int dice_register_custom_die(dice_context_t *ctx, const char *name, 
+                             const dice_custom_side_t *sides, size_t side_count);
+
+/**
+ * @brief Create a custom side with value and optional label
+ * @param value Numeric value for calculations
+ * @param label String label (can be NULL)
+ * @return Custom side structure
+ */
+dice_custom_side_t dice_custom_side(int64_t value, const char *label);
+
+/**
+ * @brief Look up a named custom die
+ * @param ctx Context handle
+ * @param name Die name
+ * @return Custom die definition or NULL if not found
+ */
+const dice_custom_die_t* dice_lookup_custom_die(const dice_context_t *ctx, const char *name);
+
+/**
+ * @brief Clear all custom dice from registry
+ * @param ctx Context handle
+ */
+void dice_clear_custom_dice(dice_context_t *ctx);
 
 #ifdef __cplusplus
 }
