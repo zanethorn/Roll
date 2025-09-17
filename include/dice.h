@@ -84,7 +84,6 @@ typedef struct dice_custom_die {
     const char *name;              // Die name (for named dice like "F", "HQ", etc.)
     dice_custom_side_t *sides;     // Array of side definitions
     size_t side_count;             // Number of sides
-    bool uniform_distribution;     // Whether all sides have equal probability
 } dice_custom_die_t;
 
 /**

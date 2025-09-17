@@ -104,7 +104,6 @@ static dice_custom_die_t* parse_custom_die_definition(parser_state_t *state) {
     
     custom_die->name = NULL; // Inline die has no name
     custom_die->side_count = 0;
-    custom_die->uniform_distribution = true;
     
     // Parse sides
     while (*state->pos && *state->pos != '}') {

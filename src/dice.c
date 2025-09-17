@@ -365,7 +365,6 @@ int dice_register_custom_die(dice_context_t *ctx, const char *name,
         die->sides[i].label = sides[i].label ? strdup(sides[i].label) : NULL;
     }
     
-    die->uniform_distribution = true; // All registered dice have uniform distribution
     ctx->custom_dice.count++;
     
     return 0;
