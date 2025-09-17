@@ -312,17 +312,32 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         node->data.dice_op.sides = sides;
     }
     
-    // Check for keep/drop modifiers: kh, kl, dh, dl
+    // Check for keep/drop modifiers: kh, kl, dh, dl, k (shorthand for kh), d (shorthand for dl)
     skip_whitespace(state);
     if ((*state->pos == 'k' || *state->pos == 'K' || *state->pos == 'd' || *state->pos == 'D') &&
-        (*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
-         *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L')) {
+        ((*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
+          *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L') ||
+         (is_digit(*(state->pos + 1)) || *(state->pos + 1) == ' ' || *(state->pos + 1) == '\t'))) {
         
         char op1 = tolower(*state->pos);
-        char op2 = tolower(*(state->pos + 1));
+        char op2 = '\0';
         
-        // Skip the two-character operator
-        state->pos += 2;
+        // Check if it's a two-character operator (kh, kl, dh, dl) or single-character shorthand (k, d)
+        if (*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
+            *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L') {
+            op2 = tolower(*(state->pos + 1));
+        } else {
+            // Single-character shorthand: 'k' defaults to 'kh', 'd' defaults to 'dl'
+            op2 = (op1 == 'k') ? 'h' : 'l';
+        }
+        
+        // Skip the operator (either 1 or 2 characters)
+        if ((*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
+             *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L')) {
+            state->pos += 2; // Two-character operator
+        } else {
+            state->pos += 1; // Single-character shorthand
+        }
         
         // Parse the count
         skip_whitespace(state);
@@ -351,9 +366,19 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         // Determine selection parameters and preserve original syntax
         char *syntax = arena_alloc(state->ctx, 3);
         if (!syntax) return NULL;
-        syntax[0] = op1;
-        syntax[1] = op2;
-        syntax[2] = '\0';
+        
+        // For shorthand syntax, preserve the original single character but use expanded logic
+        if ((*(state->pos - 1) == 'h' || *(state->pos - 1) == 'H' || 
+             *(state->pos - 1) == 'l' || *(state->pos - 1) == 'L')) {
+            // Two-character syntax (kh, kl, dh, dl)
+            syntax[0] = op1;
+            syntax[1] = op2;
+            syntax[2] = '\0';
+        } else {
+            // Single-character shorthand syntax (k, d)
+            syntax[0] = op1;
+            syntax[1] = '\0';
+        }
         
         if (op1 == 'k') { // keep high/low
             selection->select_high = (op2 == 'h');
