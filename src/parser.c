@@ -72,10 +72,14 @@ static dice_custom_die_t* parse_custom_die_definition(parser_state_t *state) {
     while (*temp_pos && (brace_depth > 0 || *temp_pos != '}')) {
         if (*temp_pos == '"' && (temp_pos == state->pos || *(temp_pos - 1) != '\\')) {
             in_quotes = !in_quotes;
+            // If we're starting a quote and expecting a value, we found the start of a value
+            if (in_quotes && expecting_value) {
+                expecting_value = false;
+            }
         } else if (!in_quotes) {
             if (*temp_pos == '{') brace_depth++;
             else if (*temp_pos == '}') brace_depth--;
-            else if (*temp_pos == ',' && brace_depth == 0 && expecting_value) {
+            else if (*temp_pos == ',' && brace_depth == 0 && !expecting_value) {
                 side_count++;
                 expecting_value = true;
             } else if (!isspace(*temp_pos) && expecting_value) {
@@ -157,7 +161,7 @@ static dice_custom_die_t* parse_custom_die_definition(parser_state_t *state) {
             }
         } else if (*state->pos == '"') {
             // Quoted string without explicit value - use index as value
-            value = custom_die->side_count; // 0-based indexing for implicit numbering
+            value = custom_die->side_count + 1; // 1-based indexing for implicit numbering
             
             state->pos++; // consume opening quote
             const char *start = state->pos;
