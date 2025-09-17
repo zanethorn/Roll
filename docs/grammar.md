@@ -14,13 +14,9 @@ The Roll library supports a comprehensive dice notation grammar that includes st
 NUMBER      := [0-9]+
 IDENTIFIER  := [a-zA-Z][a-zA-Z0-9_]*
 DICE        := 'd' | 'D'
-KEEP_HIGH   := 'kh' | 'KH'  // Keep highest
-KEEP_LOW    := 'kl' | 'KL'  // Keep lowest
-DROP_HIGH   := 'dh' | 'DH'  // Drop highest
-DROP_LOW    := 'dl' | 'DL'  // Drop lowest  
-KEEP        := 'k' | 'K'    // Shorthand for keep highest
-DROP        := 'd' | 'D'    // Shorthand for drop lowest (context-dependent)
-SELECTOR    := 's' | 'S'    // Conditional selection
+KEEP_HIGH   := 'k' | 'K' | 'h' | 'H'  // Keep highest (k and h are aliases)
+DROP_LOW    := 'l' | 'L'              // Drop lowest
+SELECTOR    := 's' | 'S'              // Conditional selection
 GT          := '>'          // Greater than
 LT          := '<'          // Less than
 GTE         := '>='         // Greater than or equal
@@ -50,9 +46,9 @@ factor := NUMBER
 
 dice_expression := dice_count? DICE dice_sides (keep_drop_modifier | conditional_modifier)?
 
-keep_drop_modifier := (KEEP_HIGH | KEEP_LOW | DROP_HIGH | DROP_LOW | KEEP | DROP) NUMBER
+keep_drop_modifier := (KEEP_HIGH | DROP_LOW) (NUMBER | expression)?
 
-conditional_modifier := SELECTOR (GT | LT | GTE | LTE | EQ | NEQ) NUMBER
+conditional_modifier := SELECTOR ((GT | LT | GTE | LTE | EQ | NEQ) (NUMBER | expression)?)?
 
 dice_count := NUMBER
 

@@ -80,3 +80,8 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/RollConfigVersion.cmake"
     DESTINATION lib/cmake/Roll
 )
+add_executable(test_new_selection_syntax tests/test_new_selection_syntax.c)
+target_link_libraries(test_new_selection_syntax dice)
+target_include_directories(test_new_selection_syntax PRIVATE include tests)
+add_test(NAME new_selection_syntax_tests COMMAND test_new_selection_syntax)
+
