@@ -153,17 +153,11 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
                     return result;
                 }
                 
-                if (node->data.dice_op.dice_type == DICE_DICE_SELECT) {
-                    // Handle selection operations (kh/kl/dh/dl)
-                    sum = evaluate_dice_selection(ctx, count, (int)sides, node->data.dice_op.selection);
+                if (node->data.dice_op.dice_type == DICE_DICE_FILTER) {
+                    // Handle filter operations (kh/kl/dh/dl/s>N/s<N unified)
+                    sum = evaluate_dice_filter(ctx, count, (int)sides, node->data.dice_op.selection);
                     if (ctx->error.has_error) {
-                        return result; // Error was set by evaluate_dice_selection
-                    }
-                } else if (node->data.dice_op.dice_type == DICE_DICE_CONDITIONAL_SELECT) {
-                    // Handle conditional selection operations (s>N, s<N, etc.)
-                    sum = evaluate_dice_conditional_selection(ctx, count, (int)sides, node->data.dice_op.selection);
-                    if (ctx->error.has_error) {
-                        return result; // Error was set by evaluate_dice_conditional_selection
+                        return result; // Error was set by evaluate_dice_filter
                     }
                 } else {
                     // Roll standard dice (basic operation)
@@ -218,44 +212,8 @@ static int compare_rolls_asc(const void *a, const void *b) {
     return roll_a - roll_b; // Ascending order
 }
 
-int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection) {
+int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection) {
     if (!ctx || !selection) return 0;
-    
-    // Calculate actual selection count
-    int64_t actual_select_count;
-    if (selection->is_drop_operation) {
-        // Drop operation - convert to select count
-        int64_t drop_count = selection->count;
-        actual_select_count = count - drop_count;
-        
-        if (drop_count >= count) {
-            snprintf(ctx->error.message, sizeof(ctx->error.message),
-                    "Cannot drop %lld dice from only %lld dice", 
-                    (long long)drop_count, (long long)count);
-            ctx->error.has_error = true;
-            return 0;
-        }
-    } else {
-        // Keep operation
-        actual_select_count = selection->count;
-        
-        if (actual_select_count > count) {
-            snprintf(ctx->error.message, sizeof(ctx->error.message),
-                    "Cannot keep %lld dice from only %lld dice", 
-                    (long long)actual_select_count, (long long)count);
-            ctx->error.has_error = true;
-            return 0;
-        }
-    }
-    
-    // Validate selection count
-    if (actual_select_count <= 0) {
-        snprintf(ctx->error.message, sizeof(ctx->error.message),
-                "Invalid selection count: %lld (must be positive)", 
-                (long long)actual_select_count);
-        ctx->error.has_error = true;
-        return 0;
-    }
     
     // Allocate array to store all roll results
     int *rolls = arena_alloc(ctx, count * sizeof(int));
@@ -277,88 +235,97 @@ int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, c
         }
         rolls[i] = roll;
         
-        // Add to trace with selection annotation
+        // Add to trace with filter annotation
         trace_atomic_roll(ctx, sides, roll);
     }
     
-    // Sort rolls based on selection type
-    if (selection->select_high) {
-        qsort(rolls, count, sizeof(int), compare_rolls_desc); // High to low
-    } else {
-        qsort(rolls, count, sizeof(int), compare_rolls_asc);  // Low to high
-    }
-    
-    // Sum the selected dice
     int64_t sum = 0;
-    for (int i = 0; i < actual_select_count; i++) {
-        sum += rolls[i];
-    }
     
-    return sum;
-}
-
-int64_t evaluate_dice_conditional_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection) {
-    if (!ctx || !selection || !selection->is_conditional) return 0;
-    
-    // Allocate array for all rolls
-    int *rolls = arena_alloc(ctx, count * sizeof(int));
-    if (!rolls) {
-        snprintf(ctx->error.message, sizeof(ctx->error.message),
-                "Failed to allocate memory for dice rolls");
-        ctx->error.has_error = true;
-        return 0;
-    }
-    
-    // Roll all dice
-    for (int i = 0; i < count; i++) {
-        int roll = ctx->rng.roll(ctx->rng.state, sides);
-        if (roll < 0) {
+    if (selection->is_conditional) {
+        // Conditional filtering (s>N, s<N, etc.)
+        for (int i = 0; i < count; i++) {
+            bool matches = false;
+            int roll = rolls[i];
+            int64_t comp_value = selection->comparison_value;
+            
+            switch (selection->comparison_op) {
+                case DICE_OP_GT:
+                    matches = (roll > comp_value);
+                    break;
+                case DICE_OP_LT:
+                    matches = (roll < comp_value);
+                    break;
+                case DICE_OP_GTE:
+                    matches = (roll >= comp_value);
+                    break;
+                case DICE_OP_LTE:
+                    matches = (roll <= comp_value);
+                    break;
+                case DICE_OP_EQ:
+                    matches = (roll == comp_value);
+                    break;
+                case DICE_OP_NEQ:
+                    matches = (roll != comp_value);
+                    break;
+                default:
+                    snprintf(ctx->error.message, sizeof(ctx->error.message),
+                            "Unknown comparison operator in conditional filter");
+                    ctx->error.has_error = true;
+                    return 0;
+            }
+            
+            if (matches) {
+                sum += roll;
+            }
+        }
+    } else {
+        // Count-based filtering (keep/drop operations)
+        // Calculate actual selection count
+        int64_t actual_select_count;
+        if (selection->is_drop_operation) {
+            // Drop operation - convert to select count
+            int64_t drop_count = selection->count;
+            actual_select_count = count - drop_count;
+            
+            if (drop_count >= count) {
+                snprintf(ctx->error.message, sizeof(ctx->error.message),
+                        "Cannot drop %lld dice from only %lld dice", 
+                        (long long)drop_count, (long long)count);
+                ctx->error.has_error = true;
+                return 0;
+            }
+        } else {
+            // Keep operation
+            actual_select_count = selection->count;
+            
+            if (actual_select_count > count) {
+                snprintf(ctx->error.message, sizeof(ctx->error.message),
+                        "Cannot keep %lld dice from only %lld dice", 
+                        (long long)actual_select_count, (long long)count);
+                ctx->error.has_error = true;
+                return 0;
+            }
+        }
+        
+        // Validate selection count
+        if (actual_select_count <= 0) {
             snprintf(ctx->error.message, sizeof(ctx->error.message),
-                    "RNG error during dice roll");
+                    "Invalid selection count: %lld (must be positive)", 
+                    (long long)actual_select_count);
             ctx->error.has_error = true;
             return 0;
         }
-        rolls[i] = roll;
         
-        // Add to trace with conditional selection annotation
-        trace_atomic_roll(ctx, sides, roll);
-    }
-    
-    // Evaluate condition for each roll and sum matching dice
-    int64_t sum = 0;
-    for (int i = 0; i < count; i++) {
-        bool matches = false;
-        int roll = rolls[i];
-        int64_t comp_value = selection->comparison_value;
-        
-        switch (selection->comparison_op) {
-            case DICE_OP_GT:
-                matches = (roll > comp_value);
-                break;
-            case DICE_OP_LT:
-                matches = (roll < comp_value);
-                break;
-            case DICE_OP_GTE:
-                matches = (roll >= comp_value);
-                break;
-            case DICE_OP_LTE:
-                matches = (roll <= comp_value);
-                break;
-            case DICE_OP_EQ:
-                matches = (roll == comp_value);
-                break;
-            case DICE_OP_NEQ:
-                matches = (roll != comp_value);
-                break;
-            default:
-                snprintf(ctx->error.message, sizeof(ctx->error.message),
-                        "Unknown comparison operator in conditional selection");
-                ctx->error.has_error = true;
-                return 0;
+        // Sort rolls based on selection type
+        if (selection->select_high) {
+            qsort(rolls, count, sizeof(int), compare_rolls_desc); // High to low
+        } else {
+            qsort(rolls, count, sizeof(int), compare_rolls_asc);  // Low to high
         }
         
-        if (matches) {
-            sum += roll;
+        // Sum the selected dice
+        for (int i = 0; i < actual_select_count; i++) {
+            sum += rolls[i];
         }
     }
     
