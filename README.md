@@ -11,6 +11,7 @@ A comprehensive, cross-platform dice rolling library written in C with bindings 
 - **Cross-Platform**: Works on Windows, macOS, and Linux  
 - **Multiple Build Targets**: Static library, shared library, and console application
 - **Standard RPG Notation**: Supports `3d6`, `1d20+5`, `d6`, and mathematical expressions
+- **AST Visitor Pattern**: Explore and analyze parsed dice expressions
 - **Language Bindings**: Python, Node.js, Rust, and .NET support
 - **Thread-Safe**: Context-based API for concurrent usage
 
@@ -32,6 +33,7 @@ make
 ./roll 3d6        # Roll 3 six-sided dice
 ./roll 1d20+5     # Roll d20 with +5 modifier
 ./roll "2d8-1"    # Roll 2d8 with -1 penalty
+./roll --ast "3d6+2"  # Show AST structure
 ```
 
 ### C API Usage
@@ -69,6 +71,40 @@ dice_context_destroy(ctx);
 ```
 
 The simple API functions create temporary contexts internally for ease of use, while the context-based API provides full control over memory, RNG, and advanced features.
+
+**AST Visitor Pattern (Advanced):**
+```c
+#include "dice.h"
+
+// Create context and parse expression
+dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+dice_ast_node_t *ast = dice_parse(ctx, "3d6+2");
+
+// Display AST structure using built-in trace visitor
+dice_ast_visitor_t trace_visitor = dice_create_trace_visitor(stdout, "  ");
+dice_ast_traverse(ast, &trace_visitor);
+
+// Create custom visitor to count nodes
+typedef struct { int literals; int dice_ops; } counter_t;
+void count_literal(const dice_ast_node_t *node, void *data) {
+    ((counter_t*)data)->literals++;
+}
+void count_dice_op(const dice_ast_node_t *node, void *data) {
+    ((counter_t*)data)->dice_ops++;
+}
+
+counter_t counter = {0};
+dice_ast_visitor_t custom_visitor = {0};
+custom_visitor.visit_literal = count_literal;
+custom_visitor.visit_dice_op = count_dice_op;
+custom_visitor.user_data = &counter;
+
+dice_ast_traverse(ast, &custom_visitor);
+printf("Found %d literals and %d dice operations\n", 
+       counter.literals, counter.dice_ops);
+
+dice_context_destroy(ctx);
+```
 
 ### Language Bindings
 
@@ -109,6 +145,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - **[Build Guide](docs/build-guide.md)** - Cross-platform build instructions  
 - **[Language Bindings](docs/language-bindings.md)** - Integration guides for all languages
 - **[Grammar](docs/grammar.md)** - Dice notation syntax specification
+- **[AST Visitor Pattern](docs/visitor.md)** - Guide to exploring and analyzing parsed expressions
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 - **[Design Philosophy](docs/design-philosophy.md)** - Architecture and design decisions
 - **[Changelog](docs/changelog.md)** - Version history and release notes

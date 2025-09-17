@@ -17,6 +17,7 @@ set(DICE_SOURCES
     src/rng.c 
     src/memory.c 
     src/custom_dice.c
+    src/visitor.c
 )
 set(DICE_HEADERS include/dice.h)
 

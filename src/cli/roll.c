@@ -71,6 +71,7 @@ void print_usage(const char *program_name) {
     printf("    -s, --seed N      Set random seed to N\n");
     printf("    -c, --count N     Roll N times\n");
     printf("    -i, --individual  Show individual dice results\n");
+    printf("    --ast             Show AST (Abstract Syntax Tree) structure\n");
     printf("    --die NAME=DEF    Define a named custom die\n");
     printf("\n");
     printf("  Custom Die Examples:\n");
@@ -85,12 +86,14 @@ void print_usage(const char *program_name) {
     printf("    %s 1d20+5     # Roll 1 twenty-sided die with +5 modifier\n", program_name);
     printf("    %s -c 5 2d8   # Roll 2 eight-sided dice 5 times\n", program_name);
     printf("    %s -i 4d6     # Roll 4 six-sided dice, show individual results\n", program_name);
+    printf("    %s --ast '2+3*4'  # Show AST structure for complex expression\n", program_name);
 }
 
 int main(int argc, char *argv[]) {
     uint32_t seed = 0;
     int count = 1;
     int show_individual = 0;
+    int show_ast = 0;
     char *dice_notation = NULL;
     
     // Create dice context for custom die support
@@ -133,6 +136,8 @@ int main(int argc, char *argv[]) {
             }
         } else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--individual") == 0) {
             show_individual = 1;
+        } else if (strcmp(argv[i], "--ast") == 0) {
+            show_ast = 1;
         } else if (strncmp(argv[i], "--die", 5) == 0) {
             const char *definition = NULL;
             if (argv[i][5] == '=') {
@@ -177,6 +182,23 @@ int main(int argc, char *argv[]) {
     // Set up RNG with seed
     dice_rng_vtable_t rng = dice_create_system_rng(seed);
     dice_context_set_rng(ctx, &rng);
+    
+    // If AST display is requested, parse and show AST structure
+    if (show_ast) {
+        dice_ast_node_t *ast = dice_parse(ctx, dice_notation);
+        if (!ast) {
+            fprintf(stderr, "Error: %s\n", dice_get_error(ctx));
+            dice_context_destroy(ctx);
+            return 1;
+        }
+        
+        printf("AST structure for '%s':\n", dice_notation);
+        dice_ast_visitor_t trace_visitor = dice_create_trace_visitor(stdout, "  ");
+        dice_ast_traverse(ast, &trace_visitor);
+        printf("\n");
+        
+        // Don't exit here - continue with rolling if not in AST-only mode
+    }
     
     // Roll dice
     for (int i = 0; i < count; i++) {
