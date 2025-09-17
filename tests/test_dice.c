@@ -343,6 +343,77 @@ int test_custom_dice() {
     return 1;
 }
 
+int test_fate_dice_auto_registration() {
+    // Test automatic FATE dice registration when DICE_FEATURE_FATE is enabled
+    
+    // Test 1: Context without FATE feature - should not have FATE dice registered
+    dice_context_t *basic_ctx = dice_context_create(64 * 1024, DICE_FEATURE_BASIC);
+    const dice_custom_die_t *fate_lookup = dice_lookup_custom_die(basic_ctx, "F");
+    TEST_ASSERT(fate_lookup == NULL, "FATE dice 'F' should not be registered without DICE_FEATURE_FATE");
+    
+    dice_eval_result_t result = dice_roll_expression(basic_ctx, "1dF");
+    TEST_ASSERT(!result.success, "FATE dice '1dF' should fail without DICE_FEATURE_FATE");
+    TEST_ASSERT(dice_has_error(basic_ctx), "Error should be set when using unregistered FATE die");
+    
+    dice_context_destroy(basic_ctx);
+    
+    // Test 2: Context with FATE feature - should have FATE dice auto-registered
+    dice_context_t *fate_ctx = dice_context_create(64 * 1024, DICE_FEATURE_FATE);
+    fate_lookup = dice_lookup_custom_die(fate_ctx, "F");
+    TEST_ASSERT(fate_lookup != NULL, "FATE dice 'F' should be auto-registered with DICE_FEATURE_FATE");
+    TEST_ASSERT(fate_lookup->side_count == 3, "Auto-registered FATE dice should have 3 sides");
+    TEST_ASSERT(strcmp(fate_lookup->name, "F") == 0, "Auto-registered FATE dice should have name 'F'");
+    
+    // Verify the FATE sides are correct: {-1, 0, 1} with labels {"-", " ", "+"}
+    bool found_minus_one = false, found_zero = false, found_plus_one = false;
+    for (size_t i = 0; i < fate_lookup->side_count; i++) {
+        if (fate_lookup->sides[i].value == -1) {
+            found_minus_one = true;
+            TEST_ASSERT(strcmp(fate_lookup->sides[i].label, "-") == 0, "FATE -1 side should have '-' label");
+        } else if (fate_lookup->sides[i].value == 0) {
+            found_zero = true;
+            TEST_ASSERT(strcmp(fate_lookup->sides[i].label, " ") == 0, "FATE 0 side should have ' ' label");
+        } else if (fate_lookup->sides[i].value == 1) {
+            found_plus_one = true;
+            TEST_ASSERT(strcmp(fate_lookup->sides[i].label, "+") == 0, "FATE +1 side should have '+' label");
+        }
+    }
+    TEST_ASSERT(found_minus_one && found_zero && found_plus_one, "FATE dice should have sides -1, 0, and 1");
+    
+    // Test 3: Use auto-registered FATE dice
+    dice_clear_error(fate_ctx);
+    result = dice_roll_expression(fate_ctx, "1dF");
+    TEST_ASSERT(result.success, "FATE dice '1dF' should work with DICE_FEATURE_FATE enabled");
+    TEST_ASSERT(result.value >= -1 && result.value <= 1, "FATE die result should be between -1 and 1");
+    
+    // Test 4: Use multiple auto-registered FATE dice
+    dice_clear_error(fate_ctx);
+    result = dice_roll_expression(fate_ctx, "4dF");
+    TEST_ASSERT(result.success, "Multiple FATE dice '4dF' should work with auto-registration");
+    TEST_ASSERT(result.value >= -4 && result.value <= 4, "4dF result should be between -4 and 4");
+    
+    // Test 5: FATE dice with expressions
+    dice_clear_error(fate_ctx);
+    result = dice_roll_expression(fate_ctx, "2dF+3");
+    TEST_ASSERT(result.success, "FATE dice expression '2dF+3' should work with auto-registration");
+    TEST_ASSERT(result.value >= 1 && result.value <= 5, "2dF+3 result should be between 1 and 5");
+    
+    dice_context_destroy(fate_ctx);
+    
+    // Test 6: Context with all features should also have FATE dice
+    dice_context_t *all_ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    fate_lookup = dice_lookup_custom_die(all_ctx, "F");
+    TEST_ASSERT(fate_lookup != NULL, "FATE dice 'F' should be auto-registered with DICE_FEATURE_ALL");
+    
+    dice_clear_error(all_ctx);
+    result = dice_roll_expression(all_ctx, "1dF");
+    TEST_ASSERT(result.success, "FATE dice '1dF' should work with DICE_FEATURE_ALL");
+    
+    dice_context_destroy(all_ctx);
+    
+    return 1;
+}
+
 int main() {
     printf("Running dice library tests...\n\n");
     
@@ -356,6 +427,7 @@ int main() {
     RUN_TEST(test_new_architecture);
     RUN_TEST(test_exploding_dice);
     RUN_TEST(test_custom_dice);
+    RUN_TEST(test_fate_dice_auto_registration);
     
     printf("All tests passed!\n");
     

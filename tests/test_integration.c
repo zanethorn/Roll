@@ -210,6 +210,23 @@ int test_feature_flags() {
     // Advanced features may only work with all features enabled
     // (Exact behavior depends on implementation)
     
+    // Test FATE dice auto-registration with different feature flags
+    dice_eval_result_t fate_basic = dice_roll_expression(basic_ctx, "1dF");
+    dice_eval_result_t fate_all = dice_roll_expression(all_ctx, "1dF");
+    
+    // FATE dice should not work with basic features only (F not registered)
+    TEST_ASSERT(!fate_basic.success, "FATE dice (1dF) should fail without DICE_FEATURE_FATE");
+    
+    // FATE dice should work with all features enabled (auto-registered)
+    TEST_ASSERT(fate_all.success, "FATE dice (1dF) should work with DICE_FEATURE_FATE enabled");
+    TEST_ASSERT(fate_all.value >= -1 && fate_all.value <= 1, "FATE dice result should be between -1 and 1");
+    
+    // Test multiple FATE dice with auto-registration
+    dice_clear_error(all_ctx);
+    dice_eval_result_t fate_multi = dice_roll_expression(all_ctx, "4dF");
+    TEST_ASSERT(fate_multi.success, "Multiple FATE dice (4dF) should work with auto-registration");
+    TEST_ASSERT(fate_multi.value >= -4 && fate_multi.value <= 4, "4dF result should be between -4 and 4");
+    
     dice_context_destroy(basic_ctx);
     dice_context_destroy(all_ctx);
     return 1;
