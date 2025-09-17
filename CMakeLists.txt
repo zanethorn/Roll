@@ -9,7 +9,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include_directories(include)
 
 # Source files
-set(DICE_SOURCES src/dice.c src/parser.c src/eval.c src/trace.c)
+set(DICE_SOURCES src/dice.c src/parser.c src/eval.c src/trace.c src/rng.c src/memory.c src/custom_dice.c)
 set(DICE_HEADERS include/dice.h)
 
 # Options for different build types
