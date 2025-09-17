@@ -1,8 +1,0 @@
-include(CMakeFindDependencyMacro)
-
-if(NOT TARGET Roll::dice)
-    include("${CMAKE_CURRENT_LIST_DIR}/RollTargets.cmake")
-endif()
-
-set(Roll_LIBRARIES Roll::dice)
-set(Roll_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/../../../include")
