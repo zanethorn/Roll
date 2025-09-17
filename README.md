@@ -36,6 +36,28 @@ make
 
 ### C API Usage
 
+**Recommended Context-Based API (New):**
+```c
+#include "dice.h"
+
+// Create a context for dice operations
+dice_context_t *ctx = dice_context_create(1024 * 1024, DICE_FEATURE_ALL);
+
+// Set custom seed (optional)
+dice_rng_vtable_t rng = dice_create_system_rng(12345);
+dice_context_set_rng(ctx, &rng);
+
+// Roll dice using expressions
+dice_eval_result_t result = dice_roll_expression(ctx, "3d6+2");
+if (result.success) {
+    printf("Result: %lld\n", (long long)result.value);
+}
+
+// Clean up
+dice_context_destroy(ctx);
+```
+
+**Legacy API (Deprecated but still supported):**
 ```c
 #include "dice.h"
 
@@ -45,6 +67,8 @@ int sum = dice_roll_multiple(3, 6);           // Roll 3d6
 int total = dice_roll_notation("3d6+2");      // Parse notation
 dice_cleanup();
 ```
+
+> **Note**: The legacy API is deprecated and creates temporary contexts for each operation, which is less efficient. New applications should use the context-based API for better performance and thread safety.
 
 ### Language Bindings
 

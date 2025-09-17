@@ -38,6 +38,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Backwards Compatible**: All v1.x APIs still supported
 - **C99 Standard**: Maintains C99 compatibility for broad compiler support
 - **Thread Safety**: New context-based API is fully thread-safe
+- **Legacy API**: Deprecated but functional - creates temporary contexts per operation
+
+### Architecture
+- **Modular Design**: Separated RNG, memory management, and custom dice into dedicated modules
+- **No Static Variables**: Removed all global state from core library
+- **Clean Separation**: Clear distinction between public API and internal implementation
+- **Stateless Legacy API**: Legacy functions now create temporary contexts for compatibility
 
 ---
 
