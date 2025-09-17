@@ -156,6 +156,9 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
                 if (node->data.dice_op.dice_type == DICE_DICE_SELECT) {
                     // Handle selection operations (kh/kl/dh/dl)
                     sum = evaluate_dice_selection(ctx, count, (int)sides, node->data.dice_op.selection);
+                    if (ctx->error.has_error) {
+                        return result; // Error was set by evaluate_dice_selection
+                    }
                 } else {
                     // Roll standard dice (basic operation)
                     for (int i = 0; i < count; i++) {
@@ -214,9 +217,9 @@ int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, c
     
     // Calculate actual selection count
     int64_t actual_select_count;
-    if (selection->count < 0) {
-        // Negative count means drop operation - convert to select count
-        int64_t drop_count = -(selection->count);
+    if (selection->is_drop_operation) {
+        // Drop operation - convert to select count
+        int64_t drop_count = selection->count;
         actual_select_count = count - drop_count;
         
         if (drop_count >= count) {
@@ -227,7 +230,7 @@ int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, c
             return 0;
         }
     } else {
-        // Positive count means keep operation
+        // Keep operation
         actual_select_count = selection->count;
         
         if (actual_select_count > count) {

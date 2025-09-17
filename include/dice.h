@@ -96,8 +96,9 @@ typedef struct dice_custom_die_registry {
  * @brief Dice selection parameters for unified keep/drop operations
  */
 typedef struct dice_selection {
-    int64_t count;         // Number of dice to select
+    int64_t count;         // Number of dice to select (for keep) or drop (for drop)
     bool select_high;      // true for high values, false for low values
+    bool is_drop_operation; // true for drop operations, false for keep operations
     const char *original_syntax;  // Original user syntax for trace/output ("kh", "kl", "dh", "dl")
 } dice_selection_t;
 

@@ -358,12 +358,12 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         if (op1 == 'k') { // keep high/low
             selection->select_high = (op2 == 'h');
             selection->count = select_count->data.literal.value;
+            selection->is_drop_operation = false;
             selection->original_syntax = syntax;
         } else { // drop high/low
             selection->select_high = (op2 == 'l'); // drop high = select low, drop low = select high
-            // For drop operations, we store the drop count negatively to distinguish from keep count
-            // The evaluator will convert this to actual select count: total_dice - abs(drop_count)
-            selection->count = -(select_count->data.literal.value);
+            selection->count = select_count->data.literal.value;
+            selection->is_drop_operation = true;
             selection->original_syntax = syntax;
         }
         
