@@ -275,7 +275,7 @@ int test_custom_dice() {
     dice_clear_error(ctx);
     result = dice_roll_expression(ctx, "1d{\"Earth\",\"Wind\",\"Fire\",\"Water\"}");
     TEST_ASSERT(result.success, "dice_roll_expression('1d{\"Earth\",\"Wind\",\"Fire\",\"Water\"}') succeeds");
-    TEST_ASSERT(result.value >= 0 && result.value <= 3, "Element die result is between 0 and 3");
+    TEST_ASSERT(result.value >= 1 && result.value <= 4, "Element die result is between 1 and 4");
     
     // Test 4: Mixed value and label dice
     dice_clear_error(ctx);
