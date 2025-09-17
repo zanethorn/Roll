@@ -101,17 +101,19 @@ typedef struct dice_custom_die_registry {
 } dice_custom_die_registry_t;
 
 /**
- * @brief Dice selection parameters for unified keep/drop operations
+ * @brief Dice selection parameters for unified keep/drop/reroll operations
  */
 typedef struct dice_selection {
     int64_t count;         // Number of dice to select (for keep) or drop (for drop)
     bool select_high;      // true for high values, false for low values
     bool is_drop_operation; // true for drop operations, false for keep operations
-    const char *original_syntax;  // Original user syntax for trace/output ("kh", "kl", "dh", "dl")
+    const char *original_syntax;  // Original user syntax for trace/output ("kh", "kl", "dh", "dl", "r", etc.)
     // Conditional selection support (for 's' operator)
     bool is_conditional;   // true for conditional selection (s>N, s<N, etc.)
     dice_binary_op_t comparison_op; // Comparison operator for conditional selection
     int64_t comparison_value; // Value to compare against for conditional selection
+    // Reroll support (for 'r' operator)
+    bool is_reroll;        // true for reroll operations (r, r>N, r<N, etc.)
 } dice_selection_t;
 
 /**

@@ -111,6 +111,19 @@ d20         // Implicit 1d20
 3d6S>3      // Case insensitive (same as s>3)
 ```
 
+### Reroll Operations
+
+```
+3d6r        // Reroll all 1s (default)
+3d6r1       // Reroll all 1s (explicit)
+3d6r6       // Reroll all 6s
+3d6r>=2     // Reroll all dice >= 2 (keeps only 1s)
+3d6r<5      // Reroll all dice < 5 (keeps only 5s and 6s)
+4d8r<=2     // Reroll all dice <= 2 (keeps only 3s and higher)
+2d6r<>3     // Reroll all dice not equal to 3 (keeps only 3s)
+1d20R1      // Case insensitive (same as r1)
+```
+
 ### Mathematical Expressions
 
 ```
@@ -183,11 +196,11 @@ typedef enum {
 ### Extended Tokens
 
 ```
-EXCLAMATION := '!'          // Exploding dice
-GREATER     := '>'          // Success counting
-LESS        := '<'          // Success counting
-REROLL      := 'r' | 'R'    // Reroll
-FATE        := 'f' | 'F'    // FATE dice
+EXCLAMATION := '!'          // Exploding dice - PLANNED
+GREATER     := '>'          // Success counting - PLANNED  
+LESS        := '<'          // Success counting - PLANNED
+REROLL      := 'r' | 'R'    // Reroll - IMPLEMENTED
+FATE        := 'f' | 'F'    // FATE dice - IMPLEMENTED
 ```
 
 ### Extended Grammar Rules
@@ -204,7 +217,7 @@ exploding_modifier := EXCLAMATION (GREATER NUMBER)?
 
 success_modifier := (GREATER | LESS) NUMBER
 
-reroll_modifier := REROLL (GREATER | LESS)? NUMBER
+reroll_modifier := REROLL ((GREATER | LESS | GREATER_EQUAL | LESS_EQUAL | EQUAL | NOT_EQUAL) NUMBER?)?
 
 fate_modifier := FATE
 ```
@@ -212,11 +225,10 @@ fate_modifier := FATE
 ### Planned Expressions
 
 ```
-1d6!            // Exploding dice (reroll on 6)
-1d6!>4          // Explode on 4, 5, or 6
-6d6>4           // Count successes (≥4)
-3d6r1           // Reroll 1s
-4df             // FATE dice (+1, -1, 0)
+1d6!            // Exploding dice (reroll on 6) - PLANNED
+1d6!>4          // Explode on 4, 5, or 6 - PLANNED
+6d6>4           // Count successes (≥4) - PLANNED
+4df             // FATE dice (+1, -1, 0) - PLANNED
 ```
 
 ## Error Handling
