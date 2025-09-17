@@ -159,6 +159,12 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
                     if (ctx->error.has_error) {
                         return result; // Error was set by evaluate_dice_selection
                     }
+                } else if (node->data.dice_op.dice_type == DICE_DICE_CONDITIONAL_SELECT) {
+                    // Handle conditional selection operations (s>N, s<N, etc.)
+                    sum = evaluate_dice_conditional_selection(ctx, count, (int)sides, node->data.dice_op.selection);
+                    if (ctx->error.has_error) {
+                        return result; // Error was set by evaluate_dice_conditional_selection
+                    }
                 } else {
                     // Roll standard dice (basic operation)
                     for (int i = 0; i < count; i++) {
@@ -286,6 +292,74 @@ int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, c
     int64_t sum = 0;
     for (int i = 0; i < actual_select_count; i++) {
         sum += rolls[i];
+    }
+    
+    return sum;
+}
+
+int64_t evaluate_dice_conditional_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection) {
+    if (!ctx || !selection || !selection->is_conditional) return 0;
+    
+    // Allocate array for all rolls
+    int *rolls = arena_alloc(ctx, count * sizeof(int));
+    if (!rolls) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Failed to allocate memory for dice rolls");
+        ctx->error.has_error = true;
+        return 0;
+    }
+    
+    // Roll all dice
+    for (int i = 0; i < count; i++) {
+        int roll = ctx->rng.roll(ctx->rng.state, sides);
+        if (roll < 0) {
+            snprintf(ctx->error.message, sizeof(ctx->error.message),
+                    "RNG error during dice roll");
+            ctx->error.has_error = true;
+            return 0;
+        }
+        rolls[i] = roll;
+        
+        // Add to trace with conditional selection annotation
+        trace_atomic_roll(ctx, sides, roll);
+    }
+    
+    // Evaluate condition for each roll and sum matching dice
+    int64_t sum = 0;
+    for (int i = 0; i < count; i++) {
+        bool matches = false;
+        int roll = rolls[i];
+        int64_t comp_value = selection->comparison_value;
+        
+        switch (selection->comparison_op) {
+            case DICE_OP_GT:
+                matches = (roll > comp_value);
+                break;
+            case DICE_OP_LT:
+                matches = (roll < comp_value);
+                break;
+            case DICE_OP_GTE:
+                matches = (roll >= comp_value);
+                break;
+            case DICE_OP_LTE:
+                matches = (roll <= comp_value);
+                break;
+            case DICE_OP_EQ:
+                matches = (roll == comp_value);
+                break;
+            case DICE_OP_NEQ:
+                matches = (roll != comp_value);
+                break;
+            default:
+                snprintf(ctx->error.message, sizeof(ctx->error.message),
+                        "Unknown comparison operator in conditional selection");
+                ctx->error.has_error = true;
+                return 0;
+        }
+        
+        if (matches) {
+            sum += roll;
+        }
     }
     
     return sum;

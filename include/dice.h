@@ -51,7 +51,13 @@ typedef enum {
     DICE_OP_ADD,
     DICE_OP_SUB,
     DICE_OP_MUL,
-    DICE_OP_DIV
+    DICE_OP_DIV,
+    DICE_OP_GT,     // >
+    DICE_OP_LT,     // <
+    DICE_OP_GTE,    // >=
+    DICE_OP_LTE,    // <=
+    DICE_OP_EQ,     // ==
+    DICE_OP_NEQ     // !=
 } dice_binary_op_t;
 
 /**
@@ -63,6 +69,7 @@ typedef enum {
     DICE_DICE_POOL,      // NdS pool
     DICE_DICE_FATE,      // NdF FATE dice
     DICE_DICE_SELECT,    // NdS with selection (kh/kl/dh/dl unified)
+    DICE_DICE_CONDITIONAL_SELECT, // NdS with conditional selection (s>N, s<N, etc.)
     DICE_DICE_CUSTOM     // Custom dice (NdCUSTOM or Nd{...})
 } dice_dice_type_t;
 
@@ -100,6 +107,10 @@ typedef struct dice_selection {
     bool select_high;      // true for high values, false for low values
     bool is_drop_operation; // true for drop operations, false for keep operations
     const char *original_syntax;  // Original user syntax for trace/output ("kh", "kl", "dh", "dl")
+    // Conditional selection support (for 's' operator)
+    bool is_conditional;   // true for conditional selection (s>N, s<N, etc.)
+    dice_binary_op_t comparison_op; // Comparison operator for conditional selection
+    int64_t comparison_value; // Value to compare against for conditional selection
 } dice_selection_t;
 
 /**

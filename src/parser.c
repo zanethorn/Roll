@@ -353,6 +353,11 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         dice_selection_t *selection = arena_alloc(state->ctx, sizeof(dice_selection_t));
         if (!selection) return NULL;
         
+        // Initialize conditional selection fields
+        selection->is_conditional = false;
+        selection->comparison_op = DICE_OP_ADD; // Unused for non-conditional
+        selection->comparison_value = 0; // Unused for non-conditional
+        
         // Evaluate the selection count (for now, assume it's a literal)
         if (select_count->type == DICE_NODE_LITERAL) {
             selection->count = select_count->data.literal.value;
@@ -395,6 +400,83 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         // Update the node to be a selection operation
         node->data.dice_op.dice_type = DICE_DICE_SELECT;
         node->data.dice_op.modifier = select_count;
+        node->data.dice_op.selection = selection;
+        
+    } else if (*state->pos == 's' || *state->pos == 'S') {
+        // Check for conditional selection: s>N, s<N, s>=N, s<=N, s==N, s!=N
+        state->pos++; // consume 's'
+        skip_whitespace(state);
+        
+        // Parse comparison operator
+        dice_binary_op_t comp_op;
+        if (*state->pos == '>' && *(state->pos + 1) == '=') {
+            comp_op = DICE_OP_GTE;
+            state->pos += 2;
+        } else if (*state->pos == '<' && *(state->pos + 1) == '=') {
+            comp_op = DICE_OP_LTE;
+            state->pos += 2;
+        } else if (*state->pos == '=' && *(state->pos + 1) == '=') {
+            comp_op = DICE_OP_EQ;
+            state->pos += 2;
+        } else if (*state->pos == '!' && *(state->pos + 1) == '=') {
+            comp_op = DICE_OP_NEQ;
+            state->pos += 2;
+        } else if (*state->pos == '>') {
+            comp_op = DICE_OP_GT;
+            state->pos++;
+        } else if (*state->pos == '<') {
+            comp_op = DICE_OP_LT;
+            state->pos++;
+        } else {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected comparison operator after 's' (>, <, >=, <=, ==, !=)");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        skip_whitespace(state);
+        
+        // Parse comparison value
+        dice_ast_node_t *comp_value = parse_number(state);
+        if (!comp_value || comp_value->type != DICE_NODE_LITERAL) {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected numeric value after comparison operator");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        // Create conditional selection structure
+        dice_selection_t *selection = arena_alloc(state->ctx, sizeof(dice_selection_t));
+        if (!selection) return NULL;
+        
+        selection->is_conditional = true;
+        selection->comparison_op = comp_op;
+        selection->comparison_value = comp_value->data.literal.value;
+        selection->count = 0; // Not used for conditional selection
+        selection->select_high = false; // Not used for conditional selection
+        selection->is_drop_operation = false; // Not used for conditional selection
+        
+        // Create original syntax string
+        const char *op_str = "";
+        switch (comp_op) {
+            case DICE_OP_GT: op_str = ">"; break;
+            case DICE_OP_LT: op_str = "<"; break;
+            case DICE_OP_GTE: op_str = ">="; break;
+            case DICE_OP_LTE: op_str = "<="; break;
+            case DICE_OP_EQ: op_str = "=="; break;
+            case DICE_OP_NEQ: op_str = "!="; break;
+            default: op_str = "?"; break;
+        }
+        
+        size_t syntax_len = snprintf(NULL, 0, "s%s%lld", op_str, (long long)comp_value->data.literal.value) + 1;
+        char *syntax = arena_alloc(state->ctx, syntax_len);
+        if (!syntax) return NULL;
+        snprintf(syntax, syntax_len, "s%s%lld", op_str, (long long)comp_value->data.literal.value);
+        selection->original_syntax = syntax;
+        
+        // Update the node to be a conditional selection operation
+        node->data.dice_op.dice_type = DICE_DICE_CONDITIONAL_SELECT;
+        node->data.dice_op.modifier = comp_value;
         node->data.dice_op.selection = selection;
     }
     
