@@ -63,6 +63,20 @@ dice_context_t* dice_context_create(size_t arena_size, dice_features_t features)
     ctx->custom_dice.count = 0;
     ctx->custom_dice.capacity = 0;
     
+    // Register default FATE dice if FATE feature is enabled
+    if (features & DICE_FEATURE_FATE) {
+        dice_custom_side_t fate_sides[] = {
+            {-1, "-"},
+            {0, " "},
+            {1, "+"}
+        };
+        if (dice_register_custom_die(ctx, "F", fate_sides, 3) != 0) {
+            // If registration fails, clean up and return NULL
+            dice_context_destroy(ctx);
+            return NULL;
+        }
+    }
+    
     return ctx;
 }
 
