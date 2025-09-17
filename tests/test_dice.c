@@ -258,6 +258,95 @@ int test_exploding_dice() {
     return 1;
 }
 
+int test_custom_dice() {
+    // Test custom dice functionality
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    dice_rng_vtable_t rng = dice_create_system_rng(12345);
+    dice_context_set_rng(ctx, &rng);
+    
+    // Test 1: Inline FATE dice
+    dice_eval_result_t result = dice_roll_expression(ctx, "1d{-1,0,1}");
+    TEST_ASSERT(result.success, "dice_roll_expression('1d{-1,0,1}') succeeds");
+    TEST_ASSERT(result.value >= -1 && result.value <= 1, "FATE die result is between -1 and 1");
+    
+    // Test 2: Multiple inline custom dice
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "4d{-1,0,1}");
+    TEST_ASSERT(result.success, "dice_roll_expression('4d{-1,0,1}') succeeds");
+    TEST_ASSERT(result.value >= -4 && result.value <= 4, "4 FATE dice result is between -4 and 4");
+    
+    // Test 3: String-only dice with implicit numbering
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "1d{\"Earth\",\"Wind\",\"Fire\",\"Water\"}");
+    TEST_ASSERT(result.success, "dice_roll_expression('1d{\"Earth\",\"Wind\",\"Fire\",\"Water\"}') succeeds");
+    TEST_ASSERT(result.value >= 0 && result.value <= 3, "Element die result is between 0 and 3");
+    
+    // Test 4: Mixed value and label dice
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "1d{-1:\"-\",0:\" \",1:\"+\"}");
+    TEST_ASSERT(result.success, "dice_roll_expression('1d{-1:\"-\",0:\" \",1:\"+\"}') succeeds");
+    TEST_ASSERT(result.value >= -1 && result.value <= 1, "Labeled FATE die result is between -1 and 1");
+    
+    // Test 5: Register named FATE dice
+    dice_custom_side_t fate_sides[] = {
+        {-1, "-"},
+        {0, " "},
+        {1, "+"}
+    };
+    int reg_result = dice_register_custom_die(ctx, "F", fate_sides, 3);
+    TEST_ASSERT(reg_result == 0, "dice_register_custom_die() succeeds for FATE dice");
+    
+    // Test 6: Use named FATE dice
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "1dF");
+    TEST_ASSERT(result.success, "dice_roll_expression('1dF') succeeds");
+    TEST_ASSERT(result.value >= -1 && result.value <= 1, "Named FATE die result is between -1 and 1");
+    
+    // Test 7: Multiple named FATE dice
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "4dF");
+    TEST_ASSERT(result.success, "dice_roll_expression('4dF') succeeds");
+    TEST_ASSERT(result.value >= -4 && result.value <= 4, "4 named FATE dice result is between -4 and 4");
+    
+    // Test 8: Irregular numbered die
+    dice_custom_side_t demon_sides[] = {
+        {0, NULL}, {1, NULL}, {3, NULL}, {5, NULL}, {7, NULL}, {9, NULL}, {11, NULL}
+    };
+    reg_result = dice_register_custom_die(ctx, "Demon", demon_sides, 7);
+    TEST_ASSERT(reg_result == 0, "dice_register_custom_die() succeeds for Demon dice");
+    
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "1dDemon");
+    TEST_ASSERT(result.success, "dice_roll_expression('1dDemon') succeeds");
+    TEST_ASSERT(result.value == 0 || result.value == 1 || result.value == 3 || 
+                result.value == 5 || result.value == 7 || result.value == 9 || result.value == 11,
+                "Demon die returns expected irregular value");
+    
+    // Test 9: Custom dice in expressions
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "2dF+1");
+    TEST_ASSERT(result.success, "dice_roll_expression('2dF+1') succeeds");
+    TEST_ASSERT(result.value >= -1 && result.value <= 3, "2dF+1 result is in expected range");
+    
+    // Test 10: Lookup nonexistent die
+    const dice_custom_die_t *lookup = dice_lookup_custom_die(ctx, "NonExistent");
+    TEST_ASSERT(lookup == NULL, "dice_lookup_custom_die() returns NULL for nonexistent die");
+    
+    // Test 11: Use nonexistent die in expression
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "1dNonExistent");
+    TEST_ASSERT(!result.success, "dice_roll_expression('1dNonExistent') fails");
+    TEST_ASSERT(dice_has_error(ctx), "Error flag set for nonexistent die");
+    
+    // Test 12: Empty custom die should fail
+    dice_clear_error(ctx);
+    result = dice_roll_expression(ctx, "1d{}");
+    TEST_ASSERT(!result.success, "dice_roll_expression('1d{}') fails for empty die");
+    
+    dice_context_destroy(ctx);
+    return 1;
+}
+
 int main() {
     printf("Running dice library tests...\n\n");
     
@@ -271,6 +360,7 @@ int main() {
     RUN_TEST(test_rng_decoupling);
     RUN_TEST(test_new_architecture);
     RUN_TEST(test_exploding_dice);
+    RUN_TEST(test_custom_dice);
     
     printf("All tests passed!\n");
     
