@@ -72,6 +72,7 @@ void print_usage(FILE *stream, const char *program_name) {
     fprintf(stream, "    -c, --count N     Roll N times\n");
     fprintf(stream, "    -t, --trace       Show individual dice results\n");
     fprintf(stream, "    --ast             Show AST (Abstract Syntax Tree) structure\n");
+    fprintf(stream, "    -p, --parse-only  Parse and display AST without evaluation\n");
     fprintf(stream, "    --die NAME=DEF    Define a named custom die\n");
     fprintf(stream, "\n");
     fprintf(stream, "  Standard Examples:\n");
@@ -80,6 +81,7 @@ void print_usage(FILE *stream, const char *program_name) {
     fprintf(stream, "    %s -c 5 2d8   # Roll 2 eight-sided dice 5 times\n", program_name);
     fprintf(stream, "    %s -t 4d6     # Roll 4 six-sided dice, show individual results\n", program_name);
     fprintf(stream, "    %s --ast '2+3*4'  # Show AST structure for complex expression\n", program_name);
+    fprintf(stream, "    %s -p '3d6+2'     # Parse and display AST without rolling\n", program_name);
     fprintf(stream, "\n");
     fprintf(stream, "  Selection Examples:\n");
     fprintf(stream, "    %s '4d6k3'    # Keep highest 3 of 4d6 (ability scores)\n", program_name);
@@ -104,6 +106,7 @@ int main(int argc, char *argv[]) {
     int count = 1;
     int show_trace = 0;
     int show_ast = 0;
+    int parse_only = 0;
     char *dice_notation = NULL;
     
     // Create dice context for custom die support
@@ -148,6 +151,8 @@ int main(int argc, char *argv[]) {
             show_trace = 1;
         } else if (strcmp(argv[i], "--ast") == 0) {
             show_ast = 1;
+        } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--parse-only") == 0) {
+            parse_only = 1;
         } else if (strncmp(argv[i], "--die", 5) == 0) {
             const char *definition = NULL;
             if (argv[i][5] == '=') {
@@ -194,7 +199,7 @@ int main(int argc, char *argv[]) {
     dice_context_set_rng(ctx, &rng);
     
     // If AST display is requested, parse and show AST structure
-    if (show_ast) {
+    if (show_ast || parse_only) {
         dice_ast_node_t *ast = dice_parse(ctx, dice_notation);
         if (!ast) {
             fprintf(stderr, "Error: %s\n", dice_get_error(ctx));
@@ -207,7 +212,13 @@ int main(int argc, char *argv[]) {
         dice_ast_traverse(ast, &trace_visitor);
         printf("\n");
         
-        // Don't exit here - continue with rolling if not in AST-only mode
+        // If parse-only mode, exit here without evaluation
+        if (parse_only) {
+            dice_context_destroy(ctx);
+            return 0;
+        }
+        
+        // Don't exit here - continue with rolling if not in parse-only mode
     }
     
     // Roll dice
