@@ -316,39 +316,42 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         node->data.dice_op.sides = sides;
     }
     
-    // Check for keep/drop modifiers: kh, kl, dh, dl, k (shorthand for kh), d (shorthand for dl)
+    // Check for keep/drop modifiers: k, h (keep), l (drop) - single character only
     skip_whitespace(state);
-    if ((*state->pos == 'k' || *state->pos == 'K' || *state->pos == 'd' || *state->pos == 'D') &&
-        ((*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
-          *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L') ||
-         (is_digit(*(state->pos + 1)) || *(state->pos + 1) == ' ' || *(state->pos + 1) == '\t'))) {
+    if ((*state->pos == 'k' || *state->pos == 'K' || 
+         *state->pos == 'h' || *state->pos == 'H' ||
+         *state->pos == 'l' || *state->pos == 'L') &&
+        (is_digit(*(state->pos + 1)) || *(state->pos + 1) == ' ' || *(state->pos + 1) == '\t' || 
+         *(state->pos + 1) == '(' || *(state->pos + 1) == '\0' || *(state->pos + 1) == '+' || 
+         *(state->pos + 1) == '-' || *(state->pos + 1) == '*' || *(state->pos + 1) == '/')) {
         
         char op1 = tolower(*state->pos);
-        char op2 = '\0';
         
-        // Check if it's a two-character operator (kh, kl, dh, dl) or single-character shorthand (k, d)
-        if (*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
-            *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L') {
-            op2 = tolower(*(state->pos + 1));
-        } else {
-            // Single-character shorthand: 'k' defaults to 'kh', 'd' defaults to 'dl'
-            op2 = (op1 == 'k') ? 'h' : 'l';
-        }
+        // Single-character operators only: k, h (keep), l (drop)
+        state->pos += 1; // Skip operator
         
-        // Skip the operator (either 1 or 2 characters)
-        if ((*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
-             *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L')) {
-            state->pos += 2; // Two-character operator
-        } else {
-            state->pos += 1; // Single-character shorthand
-        }
-        
-        // Parse the count
+        // Parse the count (can be expression or default to 1)
         skip_whitespace(state);
-        dice_ast_node_t *select_count = parse_number(state);
+        dice_ast_node_t *select_count = NULL;
+        
+        // Check if there's a number, expression, or nothing (default to 1)
+        if (*state->pos == '(') {
+            // Parse parenthesized expression
+            select_count = parse_primary(state);
+        } else if (is_digit(*state->pos)) {
+            // Parse number
+            select_count = parse_number(state);
+        } else {
+            // Default to 1
+            select_count = create_node(state->ctx, DICE_NODE_LITERAL);
+            if (select_count) {
+                select_count->data.literal.value = 1;
+            }
+        }
+        
         if (!select_count) {
             snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
-                    "Expected number after %c%c modifier", op1, op2);
+                    "Failed to parse selection count after %c modifier", op1);
             state->ctx->error.has_error = true;
             return NULL;
         }
@@ -362,43 +365,38 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         selection->comparison_op = DICE_OP_ADD; // Unused for non-conditional
         selection->comparison_value = 0; // Unused for non-conditional
         
-        // Evaluate the selection count (for now, assume it's a literal)
+        // Evaluate the selection count - now supports expressions
+        selection->count = 1; // Default value
         if (select_count->type == DICE_NODE_LITERAL) {
             selection->count = select_count->data.literal.value;
         } else {
+            // For now, expressions are not fully supported - need to evaluate at runtime
+            // Store the AST node for later evaluation
             snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
-                    "Selection count must be a literal number");
+                    "Expression selection counts not yet implemented");
             state->ctx->error.has_error = true;
             return NULL;
         }
         
-        // Determine selection parameters and preserve original syntax
-        char *syntax = arena_alloc(state->ctx, 3);
+        // Determine selection parameters based on new operators
+        char *syntax = arena_alloc(state->ctx, 2);
         if (!syntax) return NULL;
+        syntax[0] = op1;
+        syntax[1] = '\0';
         
-        // For shorthand syntax, preserve the original single character but use expanded logic
-        if ((*(state->pos - 1) == 'h' || *(state->pos - 1) == 'H' || 
-             *(state->pos - 1) == 'l' || *(state->pos - 1) == 'L')) {
-            // Two-character syntax (kh, kl, dh, dl)
-            syntax[0] = op1;
-            syntax[1] = op2;
-            syntax[2] = '\0';
-        } else {
-            // Single-character shorthand syntax (k, d)
-            syntax[0] = op1;
-            syntax[1] = '\0';
-        }
-        
-        if (op1 == 'k') { // keep high/low
-            selection->select_high = (op2 == 'h');
-            selection->count = select_count->data.literal.value;
+        if (op1 == 'k' || op1 == 'h') { // keep high ('k' and 'h' are aliases)
+            selection->select_high = true;
             selection->is_drop_operation = false;
             selection->original_syntax = syntax;
-        } else { // drop high/low
-            selection->select_high = (op2 == 'l'); // drop high = select low, drop low = select high
-            selection->count = select_count->data.literal.value;
+        } else if (op1 == 'l') { // drop low ('l' replaces 'd')
+            selection->select_high = true; // drop low = keep high remaining dice
             selection->is_drop_operation = true;
             selection->original_syntax = syntax;
+        } else {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Unknown selection operator: %c", op1);
+            state->ctx->error.has_error = true;
+            return NULL;
         }
         
         // Update the node to be a filter operation
@@ -407,12 +405,13 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         node->data.dice_op.selection = selection;
         
     } else if (*state->pos == 's' || *state->pos == 'S') {
-        // Check for conditional selection: s>N, s<N, s>=N, s<=N, s==N, s!=N
+        // Check for conditional selection: s>N, s<N, s>=N, s<=N, s==N, s!=N, or just sN (defaults to s=N)
         state->pos++; // consume 's'
         skip_whitespace(state);
         
-        // Parse comparison operator
-        dice_binary_op_t comp_op;
+        // Parse comparison operator or detect default case
+        dice_binary_op_t comp_op = DICE_OP_EQ; // Default to equals
+        
         if (*state->pos == '>' && *(state->pos + 1) == '=') {
             comp_op = DICE_OP_GTE;
             state->pos += 2;
@@ -431,20 +430,51 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         } else if (*state->pos == '<') {
             comp_op = DICE_OP_LT;
             state->pos++;
+        } else if (is_digit(*state->pos)) {
+            // No operator provided - default to equals
+            comp_op = DICE_OP_EQ;
+        } else if (*state->pos == '\0' || *state->pos == ' ' || *state->pos == '\t' ||
+                   *state->pos == '+' || *state->pos == '-' || *state->pos == '*' || *state->pos == '/') {
+            // No value provided - default to s=1
+            comp_op = DICE_OP_EQ;
         } else {
             snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
-                    "Expected comparison operator after 's' (>, <, >=, <=, =, <>)");
+                    "Expected comparison operator after 's' (>, <, >=, <=, =, <>) or numeric value");
             state->ctx->error.has_error = true;
             return NULL;
         }
         
         skip_whitespace(state);
         
-        // Parse comparison value
-        dice_ast_node_t *comp_value = parse_number(state);
+        // Parse comparison value (default to 1 if not provided, but fail for incomplete operators)
+        dice_ast_node_t *comp_value = NULL;
+        
+        if (is_digit(*state->pos)) {
+            comp_value = parse_number(state);
+        } else if (*state->pos == '\0' || *state->pos == ' ' || *state->pos == '\t' ||
+                   *state->pos == '+' || *state->pos == '-' || *state->pos == '*' || *state->pos == '/') {
+            // Check if we have an incomplete comparison operator (like s> with no value)
+            if (comp_op != DICE_OP_EQ) {
+                snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                        "Missing comparison value after comparison operator");
+                state->ctx->error.has_error = true;
+                return NULL;
+            }
+            // Default to 1 only for 's' or 'sN' cases (not 's>' cases)
+            comp_value = create_node(state->ctx, DICE_NODE_LITERAL);
+            if (comp_value) {
+                comp_value->data.literal.value = 1;
+            }
+        } else {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected numeric value after 's' operator");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
         if (!comp_value || comp_value->type != DICE_NODE_LITERAL) {
             snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
-                    "Expected numeric value after comparison operator");
+                    "Failed to parse comparison value for 's' operator");
             state->ctx->error.has_error = true;
             return NULL;
         }
