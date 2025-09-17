@@ -300,31 +300,30 @@ int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, cons
             actual_select_count = count - drop_count;
             
             if (drop_count >= count) {
-                snprintf(ctx->error.message, sizeof(ctx->error.message),
-                        "Cannot drop %lld dice from only %lld dice", 
-                        (long long)drop_count, (long long)count);
-                ctx->error.has_error = true;
-                return 0;
+                // Dropping more dice than available - result is 0 (all dice dropped)
+                actual_select_count = 0;
             }
         } else {
             // Keep operation
             actual_select_count = selection->count;
             
             if (actual_select_count > count) {
-                snprintf(ctx->error.message, sizeof(ctx->error.message),
-                        "Cannot keep %lld dice from only %lld dice", 
-                        (long long)actual_select_count, (long long)count);
-                ctx->error.has_error = true;
-                return 0;
+                // Keeping more dice than available - keep all dice that were rolled
+                actual_select_count = count;
             }
         }
         
         // Validate selection count
-        if (actual_select_count <= 0) {
+        if (actual_select_count < 0) {
             snprintf(ctx->error.message, sizeof(ctx->error.message),
-                    "Invalid selection count: %lld (must be positive)", 
+                    "Invalid selection count: %lld (must be non-negative)", 
                     (long long)actual_select_count);
             ctx->error.has_error = true;
+            return 0;
+        }
+        
+        // Special case: if selecting 0 dice (drop all or more), return 0
+        if (actual_select_count == 0) {
             return 0;
         }
         

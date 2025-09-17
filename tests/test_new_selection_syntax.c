@@ -122,25 +122,28 @@ int test_equivalence_relationships() {
 int test_edge_cases() {
     dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
     
-    // Test: Can't drop all dice
+    // Test: Drop all dice - now allowed, result is 0
     dice_eval_result_t result = dice_roll_expression(ctx, "3d6l3");
-    TEST_ASSERT(!result.success, "Cannot drop all dice");
+    TEST_ASSERT(result.success, "Drop all dice is now allowed");
+    TEST_ASSERT(result.value == 0, "Drop all result equals 0");
     
-    // Reset context after error
+    // Reset context after test
     dice_context_reset(ctx);
     
-    // Test: Can't drop more than available
+    // Test: Drop more than available - now allowed, result is 0
     result = dice_roll_expression(ctx, "3d6l5");
-    TEST_ASSERT(!result.success, "Cannot drop more dice than rolled");
+    TEST_ASSERT(result.success, "Drop more dice than rolled is now allowed");
+    TEST_ASSERT(result.value == 0, "Drop more result equals 0");
     
-    // Reset context after error
+    // Reset context after test
     dice_context_reset(ctx);
     
-    // Test: Can't keep more than available
+    // Test: Keep more than available - now allowed, keeps all dice
     result = dice_roll_expression(ctx, "3d6k5");
-    TEST_ASSERT(!result.success, "Cannot keep more dice than rolled");
+    TEST_ASSERT(result.success, "Keep more dice than rolled is now allowed");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep more result equals sum of all dice");
     
-    // Reset context after error
+    // Reset context after test
     dice_context_reset(ctx);
     
     // Test: Drop 0 is valid (same as no drop)
