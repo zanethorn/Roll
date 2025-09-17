@@ -8,6 +8,7 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 // Forward declarations
 typedef struct dice_context dice_context_t;
@@ -16,6 +17,7 @@ typedef struct dice_rng_vtable dice_rng_vtable_t;
 typedef struct dice_policy dice_policy_t;
 typedef struct dice_trace dice_trace_t;
 typedef struct dice_error_buffer dice_error_buffer_t;
+typedef struct dice_ast_visitor dice_ast_visitor_t;
 
 // =============================================================================
 // Core Types
@@ -153,6 +155,27 @@ struct dice_ast_node {
             dice_ast_node_t *child;
         } annotation;
     } data;
+};
+
+/**
+ * @brief AST visitor interface for exploring parse trees
+ */
+struct dice_ast_visitor {
+    // Called when entering any node (pre-order)
+    void (*enter_node)(const dice_ast_node_t *node, void *user_data);
+    
+    // Called when exiting any node (post-order)
+    void (*exit_node)(const dice_ast_node_t *node, void *user_data);
+    
+    // Specific node type handlers (optional - can be NULL)
+    void (*visit_literal)(const dice_ast_node_t *node, void *user_data);
+    void (*visit_binary_op)(const dice_ast_node_t *node, void *user_data);
+    void (*visit_dice_op)(const dice_ast_node_t *node, void *user_data);
+    void (*visit_function_call)(const dice_ast_node_t *node, void *user_data);
+    void (*visit_annotation)(const dice_ast_node_t *node, void *user_data);
+    
+    // User data pointer passed to all visitor methods
+    void *user_data;
 };
 
 /**
@@ -382,6 +405,28 @@ int dice_context_set_policy(dice_context_t *ctx, const dice_policy_t *policy);
 dice_ast_node_t* dice_parse(dice_context_t *ctx, const char *expression_str);
 
 // =============================================================================
+// AST Visitor API
+// =============================================================================
+
+/**
+ * @brief Traverse AST using visitor pattern
+ * @param node AST root node to traverse
+ * @param visitor Visitor interface with callback functions
+ * @note Traverses the tree in depth-first order, calling enter_node, 
+ *       specific visitor, then exit_node for each node
+ */
+void dice_ast_traverse(const dice_ast_node_t *node, const dice_ast_visitor_t *visitor);
+
+/**
+ * @brief Create a default tracing visitor that prints AST structure
+ * @param output File handle to write output to (e.g., stdout, stderr)
+ * @param indent_str String to use for indentation (e.g., "  ", "\t")
+ * @return Configured visitor for tracing AST structure
+ * @note The returned visitor uses static storage and is not thread-safe
+ */
+dice_ast_visitor_t dice_create_trace_visitor(FILE *output, const char *indent_str);
+
+// =============================================================================
 // Evaluation API
 // =============================================================================
 
@@ -417,6 +462,23 @@ const dice_trace_t* dice_get_trace(const dice_context_t *ctx);
  * @param ctx Context handle
  */
 void dice_clear_trace(dice_context_t *ctx);
+
+/**
+ * @brief Format trace output to a string
+ * @param ctx Context handle
+ * @param buffer Output buffer
+ * @param buffer_size Size of output buffer
+ * @return Number of characters written (excluding null terminator), or -1 on error
+ */
+int dice_format_trace_string(const dice_context_t *ctx, char *buffer, size_t buffer_size);
+
+/**
+ * @brief Format trace output to a file stream
+ * @param ctx Context handle
+ * @param stream Output stream (e.g., stdout, stderr, or file)
+ * @return 0 on success, -1 on error
+ */
+int dice_format_trace_stream(const dice_context_t *ctx, FILE *stream);
 
 // =============================================================================
 // Error Handling API

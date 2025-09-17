@@ -272,6 +272,78 @@ int test_trace_with_different_features() {
     return 1;
 }
 
+int test_trace_format_string() {
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    
+    // Roll some dice to generate trace
+    dice_eval_result_t result = dice_roll_expression(ctx, "2d6");
+    TEST_ASSERT(result.success, "2d6 evaluation succeeds");
+    
+    // Format trace to string
+    char buffer[1024];
+    int written = dice_format_trace_string(ctx, buffer, sizeof(buffer));
+    TEST_ASSERT(written > 0, "Trace formatted successfully to string");
+    TEST_ASSERT(strstr(buffer, "Individual dice results:") != NULL, "Trace contains header");
+    TEST_ASSERT(strstr(buffer, "d6 ->") != NULL, "Trace contains die results");
+    
+    dice_context_destroy(ctx);
+    return 1;
+}
+
+int test_trace_format_stream() {
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    
+    // Roll some dice to generate trace
+    dice_eval_result_t result = dice_roll_expression(ctx, "1d20");
+    TEST_ASSERT(result.success, "1d20 evaluation succeeds");
+    
+    // Create a temporary file for testing
+    FILE *temp_file = tmpfile();
+    TEST_ASSERT(temp_file != NULL, "Temporary file created");
+    
+    // Format trace to stream
+    int format_result = dice_format_trace_stream(ctx, temp_file);
+    TEST_ASSERT(format_result == 0, "Trace formatted successfully to stream");
+    
+    // Read back from file to verify content
+    rewind(temp_file);
+    char buffer[1024];
+    size_t read_count = fread(buffer, 1, sizeof(buffer) - 1, temp_file);
+    buffer[read_count] = '\0';
+    
+    TEST_ASSERT(strstr(buffer, "Individual dice results:") != NULL, "Stream trace contains header");
+    TEST_ASSERT(strstr(buffer, "d20 ->") != NULL, "Stream trace contains die result");
+    
+    fclose(temp_file);
+    dice_context_destroy(ctx);
+    return 1;
+}
+
+int test_trace_format_empty() {
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    
+    // Test formatting empty trace
+    char buffer[256];
+    int written = dice_format_trace_string(ctx, buffer, sizeof(buffer));
+    TEST_ASSERT(written == 0, "Empty trace returns 0 characters written");
+    TEST_ASSERT(buffer[0] == '\0', "Empty trace produces empty string");
+    
+    // Test stream formatting with empty trace
+    FILE *temp_file = tmpfile();
+    TEST_ASSERT(temp_file != NULL, "Temporary file created");
+    
+    int format_result = dice_format_trace_stream(ctx, temp_file);
+    TEST_ASSERT(format_result == 0, "Empty trace stream formatting succeeds");
+    
+    // Check that nothing was written to the file
+    long file_size = ftell(temp_file);
+    TEST_ASSERT(file_size == 0, "No content written for empty trace");
+    
+    fclose(temp_file);
+    dice_context_destroy(ctx);
+    return 1;
+}
+
 int main() {
     printf("Running trace functionality tests...\n\n");
     
@@ -289,6 +361,9 @@ int main() {
     RUN_TEST(test_trace_after_clear_and_reuse);
     RUN_TEST(test_trace_with_policy_violations);
     RUN_TEST(test_trace_with_different_features);
+    RUN_TEST(test_trace_format_string);
+    RUN_TEST(test_trace_format_stream);
+    RUN_TEST(test_trace_format_empty);
     
     printf("All trace tests passed!\n");
     return 0;
