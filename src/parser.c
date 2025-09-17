@@ -389,9 +389,9 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
             selection->select_high = true;
             selection->is_drop_operation = false;
             selection->original_syntax = syntax;
-        } else if (op1 == 'l') { // drop low ('l' replaces 'd')
-            selection->select_high = true; // drop low = keep high remaining dice
-            selection->is_drop_operation = true;
+        } else if (op1 == 'l') { // keep low ('l' for keep lowest)
+            selection->select_high = false; // keep low values
+            selection->is_drop_operation = false;
             selection->original_syntax = syntax;
         } else {
             snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),

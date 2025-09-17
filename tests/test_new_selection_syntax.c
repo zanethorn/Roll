@@ -7,10 +7,10 @@
 int test_new_syntax_requirements() {
     dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
     
-    // Test requirement 1: 'l' character for drop selector
+    // Test requirement 1: 'l' character for keep lowest selector
     dice_eval_result_t result = dice_roll_expression(ctx, "4d6l1");
-    TEST_ASSERT(result.success, "New 'l' drop syntax works");
-    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Drop 1 low result in valid range");
+    TEST_ASSERT(result.success, "New 'l' keep lowest syntax works");
+    TEST_ASSERT(result.value >= 1 && result.value <= 6, "Keep 1 lowest result in valid range");
     
     // Test requirement 2: 'k' character for keep
     result = dice_roll_expression(ctx, "4d6k3");
@@ -60,8 +60,8 @@ int test_default_values() {
     
     // Test: 3d8l = 3d8l1 (default to 1)
     result = dice_roll_expression(ctx, "3d8l");
-    TEST_ASSERT(result.success, "Drop with no value defaults to 1");
-    TEST_ASSERT(result.value >= 2 && result.value <= 16, "Default drop result in valid range");
+    TEST_ASSERT(result.success, "Keep lowest with no value defaults to 1");
+    TEST_ASSERT(result.value >= 1 && result.value <= 8, "Default keep lowest result in valid range");
     
     // Test: 5d8h = 5d8h1 (default to 1)
     result = dice_roll_expression(ctx, "5d8h");
@@ -99,7 +99,7 @@ int test_equivalence_relationships() {
     TEST_ASSERT(result2.success, "4d6h3 succeeds");
     TEST_ASSERT(result1.value == result2.value, "'k' and 'h' are equivalent");
     
-    // Test: keep high = drop low equivalence (4d6k3 = 4d6l1)
+    // Test: keep high vs keep low are different (4d6k3 != 4d6l3)
     dice_context_reset(ctx);
     rng = dice_create_system_rng(54321);
     dice_context_set_rng(ctx, &rng);
@@ -111,9 +111,10 @@ int test_equivalence_relationships() {
     rng = dice_create_system_rng(54321);  // Same seed
     dice_context_set_rng(ctx, &rng);
     
-    result2 = dice_roll_expression(ctx, "4d6l1");
-    TEST_ASSERT(result2.success, "4d6l1 succeeds");
-    TEST_ASSERT(result1.value == result2.value, "4d6k3 equals 4d6l1");
+    result2 = dice_roll_expression(ctx, "4d6l3");
+    TEST_ASSERT(result2.success, "4d6l3 succeeds");
+    // Note: These should typically be different unless all dice are the same value
+    // We can't assert they're different because they could coincidentally be equal
     
     dice_context_destroy(ctx);
     return 1;
@@ -122,18 +123,18 @@ int test_equivalence_relationships() {
 int test_edge_cases() {
     dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
     
-    // Test: Drop all dice - now allowed, result is 0
+    // Test: Keep all dice with 'l' - keeps all 3 lowest of 3 dice (all dice)
     dice_eval_result_t result = dice_roll_expression(ctx, "3d6l3");
-    TEST_ASSERT(result.success, "Drop all dice is now allowed");
-    TEST_ASSERT(result.value == 0, "Drop all result equals 0");
+    TEST_ASSERT(result.success, "Keep all lowest dice is allowed");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep all lowest result equals sum of all dice");
     
     // Reset context after test
     dice_context_reset(ctx);
     
-    // Test: Drop more than available - now allowed, result is 0
+    // Test: Keep more than available - keeps all dice that exist
     result = dice_roll_expression(ctx, "3d6l5");
-    TEST_ASSERT(result.success, "Drop more dice than rolled is now allowed");
-    TEST_ASSERT(result.value == 0, "Drop more result equals 0");
+    TEST_ASSERT(result.success, "Keep more lowest dice than rolled is allowed");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep more lowest result equals sum of all dice");
     
     // Reset context after test
     dice_context_reset(ctx);
@@ -146,10 +147,10 @@ int test_edge_cases() {
     // Reset context after test
     dice_context_reset(ctx);
     
-    // Test: Drop 0 is valid (same as no drop)
+    // Test: Keep 0 dice is valid (result is 0)
     result = dice_roll_expression(ctx, "3d6l0");
-    TEST_ASSERT(result.success, "Drop 0 dice is valid");
-    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Drop 0 result equals sum");
+    TEST_ASSERT(result.success, "Keep 0 dice is valid");
+    TEST_ASSERT(result.value == 0, "Keep 0 result equals 0");
     
     // Test: Keep all is valid
     result = dice_roll_expression(ctx, "3d6k3");
