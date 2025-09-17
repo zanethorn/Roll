@@ -14,6 +14,7 @@ CMakeUserPresets.json
 # Build directories
 build/
 build_shared/
+test_build/
 cmake-build-*
 
 # Compiled binaries and libraries
