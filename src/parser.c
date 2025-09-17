@@ -37,6 +37,7 @@ static dice_ast_node_t* create_node(dice_context_t *ctx, dice_node_type_t type) 
         if (type == DICE_NODE_DICE_OP) {
             node->data.dice_op.custom_name = NULL;
             node->data.dice_op.custom_die = NULL;
+            node->data.dice_op.selection = NULL;
         }
     }
     return node;
@@ -309,6 +310,67 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         
         node->data.dice_op.dice_type = DICE_DICE_BASIC;
         node->data.dice_op.sides = sides;
+    }
+    
+    // Check for keep/drop modifiers: kh, kl, dh, dl
+    skip_whitespace(state);
+    if ((*state->pos == 'k' || *state->pos == 'K' || *state->pos == 'd' || *state->pos == 'D') &&
+        (*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' || 
+         *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L')) {
+        
+        char op1 = tolower(*state->pos);
+        char op2 = tolower(*(state->pos + 1));
+        
+        // Skip the two-character operator
+        state->pos += 2;
+        
+        // Parse the count
+        skip_whitespace(state);
+        dice_ast_node_t *select_count = parse_number(state);
+        if (!select_count) {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected number after %c%c modifier", op1, op2);
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        // Create selection structure
+        dice_selection_t *selection = arena_alloc(state->ctx, sizeof(dice_selection_t));
+        if (!selection) return NULL;
+        
+        // Evaluate the selection count (for now, assume it's a literal)
+        if (select_count->type == DICE_NODE_LITERAL) {
+            selection->count = select_count->data.literal.value;
+        } else {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Selection count must be a literal number");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        // Determine selection parameters and preserve original syntax
+        char *syntax = arena_alloc(state->ctx, 3);
+        if (!syntax) return NULL;
+        syntax[0] = op1;
+        syntax[1] = op2;
+        syntax[2] = '\0';
+        
+        if (op1 == 'k') { // keep high/low
+            selection->select_high = (op2 == 'h');
+            selection->count = select_count->data.literal.value;
+            selection->is_drop_operation = false;
+            selection->original_syntax = syntax;
+        } else { // drop high/low
+            selection->select_high = (op2 == 'l'); // drop high = select low, drop low = select high
+            selection->count = select_count->data.literal.value;
+            selection->is_drop_operation = true;
+            selection->original_syntax = syntax;
+        }
+        
+        // Update the node to be a selection operation
+        node->data.dice_op.dice_type = DICE_DICE_SELECT;
+        node->data.dice_op.modifier = select_count;
+        node->data.dice_op.selection = selection;
     }
     
     return node;

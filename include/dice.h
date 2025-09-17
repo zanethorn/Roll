@@ -62,10 +62,7 @@ typedef enum {
     DICE_DICE_EXPLODING, // NdS!
     DICE_DICE_POOL,      // NdS pool
     DICE_DICE_FATE,      // NdF FATE dice
-    DICE_DICE_KEEP_HIGH, // NdSkhN
-    DICE_DICE_KEEP_LOW,  // NdSklN
-    DICE_DICE_DROP_HIGH, // NdSdhN
-    DICE_DICE_DROP_LOW,  // NdSdlN
+    DICE_DICE_SELECT,    // NdS with selection (kh/kl/dh/dl unified)
     DICE_DICE_CUSTOM     // Custom dice (NdCUSTOM or Nd{...})
 } dice_dice_type_t;
 
@@ -96,6 +93,16 @@ typedef struct dice_custom_die_registry {
 } dice_custom_die_registry_t;
 
 /**
+ * @brief Dice selection parameters for unified keep/drop operations
+ */
+typedef struct dice_selection {
+    int64_t count;         // Number of dice to select (for keep) or drop (for drop)
+    bool select_high;      // true for high values, false for low values
+    bool is_drop_operation; // true for drop operations, false for keep operations
+    const char *original_syntax;  // Original user syntax for trace/output ("kh", "kl", "dh", "dl")
+} dice_selection_t;
+
+/**
  * @brief AST node structure - tagged union
  */
 struct dice_ast_node {
@@ -116,6 +123,8 @@ struct dice_ast_node {
             dice_ast_node_t *count;      // number of dice (can be expression)
             dice_ast_node_t *sides;      // sides per die (can be expression, or NULL for custom)
             dice_ast_node_t *modifier;   // keep/drop count, explosion threshold, etc.
+            // Dice selection support (unified keep/drop)
+            dice_selection_t *selection; // Selection parameters (NULL for non-select operations)
             // Custom dice support
             const char *custom_name;     // Name for named custom dice (e.g., "F", "HQ")
             dice_custom_die_t *custom_die; // Inline custom die definition
