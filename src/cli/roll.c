@@ -61,32 +61,42 @@ int parse_die_definition(dice_context_t *ctx, const char *definition) {
     return result;
 }
 
-void print_usage(const char *program_name) {
-    printf("Usage: %s [options] <dice_notation>\n", program_name);
-    printf("  dice_notation: Standard RPG notation (e.g., '3d6', '1d20+5', '2d8-1')\n");
-    printf("                 or custom dice notation (e.g., '1d{-1,0,1}', '1dF')\n");
-    printf("  Options:\n");
-    printf("    -h, --help        Show this help message\n");
-    printf("    -v, --version     Show version information\n");
-    printf("    -s, --seed N      Set random seed to N\n");
-    printf("    -c, --count N     Roll N times\n");
-    printf("    -t, --trace       Show individual dice results\n");
-    printf("    --ast             Show AST (Abstract Syntax Tree) structure\n");
-    printf("    --die NAME=DEF    Define a named custom die\n");
-    printf("\n");
-    printf("  Custom Die Examples:\n");
-    printf("    %s '1d{-1,0,1}'                    # Inline FATE die\n", program_name);
-    printf("    %s '4dF'                          # FATE dice (auto-registered)\n", program_name);
-    printf("    %s --die F={-1,0,1} '4dF'         # Named FATE dice (explicit)\n", program_name);
-    printf("    %s --die HQ='{0:\"Skull\",1:\"Shield\"}' '1dHQ'  # Labeled dice\n", program_name);
-    printf("    %s '1d{\"Earth\",\"Wind\",\"Fire\"}'      # String-only dice\n", program_name);
-    printf("\n");
-    printf("  Standard Examples:\n");
-    printf("    %s 3d6        # Roll 3 six-sided dice\n", program_name);
-    printf("    %s 1d20+5     # Roll 1 twenty-sided die with +5 modifier\n", program_name);
-    printf("    %s -c 5 2d8   # Roll 2 eight-sided dice 5 times\n", program_name);
-    printf("    %s -t 4d6     # Roll 4 six-sided dice, show individual results\n", program_name);
-    printf("    %s --ast '2+3*4'  # Show AST structure for complex expression\n", program_name);
+void print_usage(FILE *stream, const char *program_name) {
+    fprintf(stream, "Usage: %s [options] <dice_notation>\n", program_name);
+    fprintf(stream, "  dice_notation: Standard RPG notation (e.g., '3d6', '1d20+5', '2d8-1')\n");
+    fprintf(stream, "                 or custom dice notation (e.g., '1d{-1,0,1}', '1dF')\n");
+    fprintf(stream, "  Options:\n");
+    fprintf(stream, "    -?, --help        Show this help message\n");
+    fprintf(stream, "    -v, --version     Show version information\n");
+    fprintf(stream, "    -s, --seed N      Set random seed to N\n");
+    fprintf(stream, "    -c, --count N     Roll N times\n");
+    fprintf(stream, "    -t, --trace       Show individual dice results\n");
+    fprintf(stream, "    --ast             Show AST (Abstract Syntax Tree) structure\n");
+    fprintf(stream, "    --die NAME=DEF    Define a named custom die\n");
+    fprintf(stream, "\n");
+    fprintf(stream, "  Standard Examples:\n");
+    fprintf(stream, "    %s 3d6        # Roll 3 six-sided dice\n", program_name);
+    fprintf(stream, "    %s 1d20+5     # Roll 1 twenty-sided die with +5 modifier\n", program_name);
+    fprintf(stream, "    %s -c 5 2d8   # Roll 2 eight-sided dice 5 times\n", program_name);
+    fprintf(stream, "    %s -t 4d6     # Roll 4 six-sided dice, show individual results\n", program_name);
+    fprintf(stream, "    %s --ast '2+3*4'  # Show AST structure for complex expression\n", program_name);
+    fprintf(stream, "\n");
+    fprintf(stream, "  Selection Examples:\n");
+    fprintf(stream, "    %s '4d6kh3'   # Keep highest 3 of 4d6 (ability scores)\n", program_name);
+    fprintf(stream, "    %s '4d6kl2'   # Keep lowest 2 of 4d6\n", program_name);
+    fprintf(stream, "    %s '5d6dh2'   # Drop highest 2 of 5d6\n", program_name);
+    fprintf(stream, "    %s '5d6dl1'   # Drop lowest 1 of 5d6\n", program_name);
+    fprintf(stream, "    %s '3d6k3'    # Shorthand for kh3 (keep highest 3)\n", program_name);
+    fprintf(stream, "    %s '8d4d4'    # Shorthand for dl4 (drop lowest 4)\n", program_name);
+    fprintf(stream, "    %s '3d6s>2'   # Select all dice greater than 2\n", program_name);
+    fprintf(stream, "    %s '6d6s=6'   # Select all dice equal to 6\n", program_name);
+    fprintf(stream, "\n");
+    fprintf(stream, "  Custom Die Examples:\n");
+    fprintf(stream, "    %s '1d{-1,0,1}'                    # Inline FATE die\n", program_name);
+    fprintf(stream, "    %s '4dF'                          # FATE dice (auto-registered)\n", program_name);
+    fprintf(stream, "    %s --die F={-1,0,1} '4dF'         # Named FATE dice (explicit)\n", program_name);
+    fprintf(stream, "    %s --die HQ='{0:\"Skull\",1:\"Shield\"}' '1dHQ'  # Labeled dice\n", program_name);
+    fprintf(stream, "    %s '1d{\"Earth\",\"Wind\",\"Fire\"}'      # String-only dice\n", program_name);
 }
 
 int main(int argc, char *argv[]) {
@@ -105,8 +115,8 @@ int main(int argc, char *argv[]) {
     
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            print_usage(argv[0]);
+        if (strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(stdout, argv[0]);
             dice_context_destroy(ctx);
             return 0;
         } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
@@ -166,7 +176,7 @@ int main(int argc, char *argv[]) {
             }
         } else {
             fprintf(stderr, "Error: unknown option %s\n", argv[i]);
-            print_usage(argv[0]);
+            print_usage(stderr, argv[0]);
             dice_context_destroy(ctx);
             return 1;
         }
@@ -174,7 +184,7 @@ int main(int argc, char *argv[]) {
     
     if (dice_notation == NULL) {
         fprintf(stderr, "Error: no dice notation specified\n");
-        print_usage(argv[0]);
+        print_usage(stderr, argv[0]);
         dice_context_destroy(ctx);
         return 1;
     }
