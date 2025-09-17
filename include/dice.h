@@ -212,6 +212,7 @@ typedef struct dice_trace_entry {
         struct {
             int sides;
             int result;
+            bool selected;  // true if this die was selected/kept in filtering operations
         } atomic_roll;
         
         struct {

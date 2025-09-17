@@ -29,6 +29,15 @@ void* arena_alloc(dice_context_t *ctx, size_t size);
 void trace_atomic_roll(dice_context_t *ctx, int sides, int result);
 
 /**
+ * @brief Add atomic roll entry to trace log with selection status
+ * @param ctx Context handle for tracing
+ * @param sides Number of sides on the die
+ * @param result The actual roll result
+ * @param selected Whether this die was selected/kept in filtering operations
+ */
+void trace_atomic_roll_selected(dice_context_t *ctx, int sides, int result, bool selected);
+
+/**
  * @brief Evaluate dice filter operations (unified keep/drop/conditional)
  * @param ctx Context handle for evaluation and tracing
  * @param count Number of dice to roll

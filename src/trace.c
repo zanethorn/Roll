@@ -25,12 +25,17 @@ static void add_trace_entry(dice_context_t *ctx, dice_trace_entry_t *entry) {
 }
 
 void trace_atomic_roll(dice_context_t *ctx, int sides, int result) {
+    trace_atomic_roll_selected(ctx, sides, result, false);
+}
+
+void trace_atomic_roll_selected(dice_context_t *ctx, int sides, int result, bool selected) {
     dice_trace_entry_t *entry = arena_alloc(ctx, sizeof(dice_trace_entry_t));
     if (!entry) return;
     
     entry->type = TRACE_ATOMIC_ROLL;
     entry->data.atomic_roll.sides = sides;
     entry->data.atomic_roll.result = result;
+    entry->data.atomic_roll.selected = selected;
     
     add_trace_entry(ctx, entry);
 }
@@ -72,10 +77,12 @@ int dice_format_trace_string(const dice_context_t *ctx, char *buffer, size_t buf
     const dice_trace_entry_t *entry = trace->first;
     while (entry && pos < buffer_size - 1) {
         if (entry->type == TRACE_ATOMIC_ROLL) {
+            const char *marker = entry->data.atomic_roll.selected ? "*" : "";
             written = snprintf(buffer + pos, buffer_size - pos, 
-                             "  d%d -> %d\n", 
+                             "  d%d -> %d%s\n", 
                              entry->data.atomic_roll.sides, 
-                             entry->data.atomic_roll.result);
+                             entry->data.atomic_roll.result,
+                             marker);
             if (written < 0 || (size_t)written >= buffer_size - pos) {
                 return -1;
             }
@@ -103,9 +110,11 @@ int dice_format_trace_stream(const dice_context_t *ctx, FILE *stream) {
     const dice_trace_entry_t *entry = trace->first;
     while (entry) {
         if (entry->type == TRACE_ATOMIC_ROLL) {
-            fprintf(stream, "  d%d -> %d\n", 
+            const char *marker = entry->data.atomic_roll.selected ? "*" : "";
+            fprintf(stream, "  d%d -> %d%s\n", 
                    entry->data.atomic_roll.sides, 
-                   entry->data.atomic_roll.result);
+                   entry->data.atomic_roll.result,
+                   marker);
         }
         entry = entry->next;
     }

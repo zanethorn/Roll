@@ -224,6 +224,20 @@ int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, cons
         return 0;
     }
     
+    // Allocate array to track which dice are selected
+    bool *selected = arena_alloc(ctx, count * sizeof(bool));
+    if (!selected) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Failed to allocate memory for selection tracking");
+        ctx->error.has_error = true;
+        return 0;
+    }
+    
+    // Initialize selection array
+    for (int i = 0; i < count; i++) {
+        selected[i] = false;
+    }
+    
     // Roll all dice and store results
     for (int i = 0; i < count; i++) {
         int roll = ctx->rng.roll(ctx->rng.state, sides);
@@ -234,9 +248,6 @@ int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, cons
             return 0;
         }
         rolls[i] = roll;
-        
-        // Add to trace with filter annotation
-        trace_atomic_roll(ctx, sides, roll);
     }
     
     int64_t sum = 0;
@@ -275,6 +286,7 @@ int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, cons
             }
             
             if (matches) {
+                selected[i] = true;
                 sum += roll;
             }
         }
@@ -316,17 +328,63 @@ int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, cons
             return 0;
         }
         
-        // Sort rolls based on selection type
-        if (selection->select_high) {
-            qsort(rolls, count, sizeof(int), compare_rolls_desc); // High to low
-        } else {
-            qsort(rolls, count, sizeof(int), compare_rolls_asc);  // Low to high
+        // We need to track original indices to mark the correct dice as selected
+        // Create an array of indices paired with values for sorting
+        typedef struct {
+            int value;
+            int original_index;
+        } roll_with_index_t;
+        
+        roll_with_index_t *indexed_rolls = arena_alloc(ctx, count * sizeof(roll_with_index_t));
+        if (!indexed_rolls) {
+            snprintf(ctx->error.message, sizeof(ctx->error.message),
+                    "Failed to allocate memory for indexed rolls");
+            ctx->error.has_error = true;
+            return 0;
         }
         
-        // Sum the selected dice
-        for (int i = 0; i < actual_select_count; i++) {
-            sum += rolls[i];
+        // Fill the indexed array
+        for (int i = 0; i < count; i++) {
+            indexed_rolls[i].value = rolls[i];
+            indexed_rolls[i].original_index = i;
         }
+        
+        // Sort indexed rolls based on selection type
+        if (selection->select_high) {
+            // Sort high to low - we want the highest values first
+            for (int i = 0; i < count - 1; i++) {
+                for (int j = i + 1; j < count; j++) {
+                    if (indexed_rolls[j].value > indexed_rolls[i].value) {
+                        roll_with_index_t temp = indexed_rolls[i];
+                        indexed_rolls[i] = indexed_rolls[j];
+                        indexed_rolls[j] = temp;
+                    }
+                }
+            }
+        } else {
+            // Sort low to high - we want the lowest values first
+            for (int i = 0; i < count - 1; i++) {
+                for (int j = i + 1; j < count; j++) {
+                    if (indexed_rolls[j].value < indexed_rolls[i].value) {
+                        roll_with_index_t temp = indexed_rolls[i];
+                        indexed_rolls[i] = indexed_rolls[j];
+                        indexed_rolls[j] = temp;
+                    }
+                }
+            }
+        }
+        
+        // Mark the selected dice and sum them
+        for (int i = 0; i < actual_select_count; i++) {
+            int original_idx = indexed_rolls[i].original_index;
+            selected[original_idx] = true;
+            sum += indexed_rolls[i].value;
+        }
+    }
+    
+    // Now add all dice to trace with their selection status
+    for (int i = 0; i < count; i++) {
+        trace_atomic_roll_selected(ctx, sides, rolls[i], selected[i]);
     }
     
     return sum;
