@@ -1,11 +1,9 @@
 #include "dice.h"
+#include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-// External functions
-void trace_atomic_roll(dice_context_t *ctx, int sides, int result);
 
 // =============================================================================
 // Evaluator Implementation (Stateless)

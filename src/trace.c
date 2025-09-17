@@ -1,9 +1,7 @@
 #include "dice.h"
+#include "internal.h"
 #include <stdlib.h>
 #include <string.h>
-
-// Internal functions for trace
-void* arena_alloc(dice_context_t *ctx, size_t size);
 
 // =============================================================================
 // Tracing Implementation
