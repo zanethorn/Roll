@@ -362,6 +362,7 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         
         // Initialize conditional selection fields
         selection->is_conditional = false;
+        selection->is_reroll = false;
         selection->comparison_op = DICE_OP_ADD; // Unused for non-conditional
         selection->comparison_value = 0; // Unused for non-conditional
         
@@ -484,6 +485,7 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         if (!selection) return NULL;
         
         selection->is_conditional = true;
+        selection->is_reroll = false;
         selection->comparison_op = comp_op;
         selection->comparison_value = comp_value->data.literal.value;
         selection->count = 0; // Not used for conditional selection
@@ -506,6 +508,119 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         char *syntax = arena_alloc(state->ctx, syntax_len);
         if (!syntax) return NULL;
         snprintf(syntax, syntax_len, "s%s%lld", op_str, (long long)comp_value->data.literal.value);
+        selection->original_syntax = syntax;
+        
+        // Update the node to be a filter operation
+        node->data.dice_op.dice_type = DICE_DICE_FILTER;
+        node->data.dice_op.modifier = comp_value;
+        node->data.dice_op.selection = selection;
+        
+    } else if (*state->pos == 'r' || *state->pos == 'R') {
+        // Check for reroll modifier: r, r1, r>N, r<N, r>=N, r<=N, r==N, r!=N
+        state->pos++; // consume 'r'
+        skip_whitespace(state);
+        
+        // Parse comparison operator or detect default case (reroll 1s)
+        dice_binary_op_t comp_op = DICE_OP_EQ; // Default to equals
+        
+        if (*state->pos == '>' && *(state->pos + 1) == '=') {
+            comp_op = DICE_OP_GTE;
+            state->pos += 2;
+        } else if (*state->pos == '<' && *(state->pos + 1) == '=') {
+            comp_op = DICE_OP_LTE;
+            state->pos += 2;
+        } else if (*state->pos == '<' && *(state->pos + 1) == '>') {
+            comp_op = DICE_OP_NEQ;
+            state->pos += 2;
+        } else if (*state->pos == '=' && *(state->pos + 1) == '=') {
+            comp_op = DICE_OP_EQ;
+            state->pos += 2;
+        } else if (*state->pos == '=') {
+            comp_op = DICE_OP_EQ;
+            state->pos++;
+        } else if (*state->pos == '>') {
+            comp_op = DICE_OP_GT;
+            state->pos++;
+        } else if (*state->pos == '<') {
+            comp_op = DICE_OP_LT;
+            state->pos++;
+        } else if (is_digit(*state->pos)) {
+            // No operator provided - default to equals
+            comp_op = DICE_OP_EQ;
+        } else if (*state->pos == '\0' || *state->pos == ' ' || *state->pos == '\t' ||
+                   *state->pos == '+' || *state->pos == '-' || *state->pos == '*' || *state->pos == '/') {
+            // No value provided - default to r1 (reroll 1s)
+            comp_op = DICE_OP_EQ;
+        } else {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected comparison operator after 'r' (>, <, >=, <=, =, <>) or numeric value");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        skip_whitespace(state);
+        
+        // Parse comparison value (default to 1 if not provided)
+        dice_ast_node_t *comp_value = NULL;
+        
+        if (is_digit(*state->pos)) {
+            comp_value = parse_number(state);
+        } else if (*state->pos == '\0' || *state->pos == ' ' || *state->pos == '\t' ||
+                   *state->pos == '+' || *state->pos == '-' || *state->pos == '*' || *state->pos == '/') {
+            // Check if we have an incomplete comparison operator (like r> with no value)
+            if (comp_op != DICE_OP_EQ) {
+                snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                        "Missing comparison value after comparison operator");
+                state->ctx->error.has_error = true;
+                return NULL;
+            }
+            // Default to 1 only for 'r' or 'rN' cases (not 'r>' cases)
+            comp_value = create_node(state->ctx, DICE_NODE_LITERAL);
+            if (comp_value) {
+                comp_value->data.literal.value = 1;
+            }
+        } else {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Expected numeric value after 'r' operator");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        if (!comp_value || comp_value->type != DICE_NODE_LITERAL) {
+            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                    "Failed to parse comparison value for 'r' operator");
+            state->ctx->error.has_error = true;
+            return NULL;
+        }
+        
+        // Create reroll selection structure
+        dice_selection_t *selection = arena_alloc(state->ctx, sizeof(dice_selection_t));
+        if (!selection) return NULL;
+        
+        selection->is_conditional = true;
+        selection->is_reroll = true;
+        selection->comparison_op = comp_op;
+        selection->comparison_value = comp_value->data.literal.value;
+        selection->count = 0; // Not used for reroll
+        selection->select_high = false; // Not used for reroll
+        selection->is_drop_operation = false; // Not used for reroll
+        
+        // Create original syntax string
+        const char *op_str = "";
+        switch (comp_op) {
+            case DICE_OP_GT: op_str = ">"; break;
+            case DICE_OP_LT: op_str = "<"; break;
+            case DICE_OP_GTE: op_str = ">="; break;
+            case DICE_OP_LTE: op_str = "<="; break;
+            case DICE_OP_EQ: op_str = ""; break; // For r1, don't show the = operator
+            case DICE_OP_NEQ: op_str = "<>"; break;
+            default: op_str = "?"; break;
+        }
+        
+        size_t syntax_len = snprintf(NULL, 0, "r%s%lld", op_str, (long long)comp_value->data.literal.value) + 1;
+        char *syntax = arena_alloc(state->ctx, syntax_len);
+        if (!syntax) return NULL;
+        snprintf(syntax, syntax_len, "r%s%lld", op_str, (long long)comp_value->data.literal.value);
         selection->original_syntax = syntax;
         
         // Update the node to be a filter operation

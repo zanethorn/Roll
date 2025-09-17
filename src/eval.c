@@ -252,7 +252,76 @@ int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, cons
     
     int64_t sum = 0;
     
-    if (selection->is_conditional) {
+    if (selection->is_conditional && selection->is_reroll) {
+        // Reroll operations (r, r1, r>N, r<N, etc.)
+        for (int i = 0; i < count; i++) {
+            bool should_reroll = true;
+            int roll = rolls[i];
+            int reroll_count = 0;
+            const int max_rerolls = 100; // Safety limit to prevent infinite loops
+            
+            while (should_reroll && reroll_count < max_rerolls) {
+                int64_t comp_value = selection->comparison_value;
+                bool matches_reroll_condition = false;
+                
+                switch (selection->comparison_op) {
+                    case DICE_OP_GT:
+                        matches_reroll_condition = (roll > comp_value);
+                        break;
+                    case DICE_OP_LT:
+                        matches_reroll_condition = (roll < comp_value);
+                        break;
+                    case DICE_OP_GTE:
+                        matches_reroll_condition = (roll >= comp_value);
+                        break;
+                    case DICE_OP_LTE:
+                        matches_reroll_condition = (roll <= comp_value);
+                        break;
+                    case DICE_OP_EQ:
+                        matches_reroll_condition = (roll == comp_value);
+                        break;
+                    case DICE_OP_NEQ:
+                        matches_reroll_condition = (roll != comp_value);
+                        break;
+                    default:
+                        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                                "Unknown comparison operator in reroll operation");
+                        ctx->error.has_error = true;
+                        return 0;
+                }
+                
+                if (matches_reroll_condition) {
+                    // Mark as rerolled for tracing
+                    trace_atomic_roll_selected(ctx, sides, roll, false);
+                    
+                    // Reroll the die
+                    int new_roll = ctx->rng.roll(ctx->rng.state, sides);
+                    if (new_roll < 0) {
+                        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                                "RNG error during reroll");
+                        ctx->error.has_error = true;
+                        return 0;
+                    }
+                    roll = new_roll;
+                    reroll_count++;
+                } else {
+                    should_reroll = false;
+                }
+            }
+            
+            if (reroll_count >= max_rerolls) {
+                snprintf(ctx->error.message, sizeof(ctx->error.message),
+                        "Maximum reroll limit (%d) exceeded for die %d", max_rerolls, i + 1);
+                ctx->error.has_error = true;
+                return 0;
+            }
+            
+            // Store final result
+            rolls[i] = roll;
+            selected[i] = true; // All dice are selected in reroll operations
+            sum += roll;
+        }
+    } else if (selection->is_conditional) {
         // Conditional filtering (s>N, s<N, etc.)
         for (int i = 0; i < count; i++) {
             bool matches = false;
