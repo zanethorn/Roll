@@ -4,63 +4,6 @@
 #include <ctype.h>
 #include "dice.h"
 
-// Helper function to parse custom die definition from --die flag
-int parse_die_definition(dice_context_t *ctx, const char *definition) {
-    // Expected format: NAME={sides...} or NAME=definition
-    const char *equals = strchr(definition, '=');
-    if (!equals) {
-        fprintf(stderr, "Error: --die format should be NAME={definition}, got '%s'\n", definition);
-        return -1;
-    }
-    
-    // Extract name
-    size_t name_len = equals - definition;
-    if (name_len == 0) {
-        fprintf(stderr, "Error: --die requires a name before '='\n");
-        return -1;
-    }
-    
-    char *name = malloc(name_len + 1);
-    strncpy(name, definition, name_len);
-    name[name_len] = '\0';
-    
-    // Parse the definition part using our parser
-    const char *def_str = equals + 1;
-    
-    // Create a temporary dice expression to parse the custom die
-    size_t temp_expr_len = strlen(def_str) + 10;
-    char *temp_expr = malloc(temp_expr_len);
-    snprintf(temp_expr, temp_expr_len, "1d%s", def_str);
-    
-    // Parse the expression to extract custom die definition
-    dice_ast_node_t *ast = dice_parse(ctx, temp_expr);
-    free(temp_expr);
-    
-    if (!ast || ast->type != DICE_NODE_DICE_OP || ast->data.dice_op.dice_type != DICE_DICE_CUSTOM) {
-        fprintf(stderr, "Error: invalid custom die definition '%s'\n", def_str);
-        free(name);
-        return -1;
-    }
-    
-    if (!ast->data.dice_op.custom_die) {
-        fprintf(stderr, "Error: could not parse custom die definition '%s'\n", def_str);
-        free(name);
-        return -1;
-    }
-    
-    // Register the custom die
-    const dice_custom_die_t *custom_die = ast->data.dice_op.custom_die;
-    int result = dice_register_custom_die(ctx, name, custom_die->sides, custom_die->side_count);
-    
-    if (result != 0) {
-        fprintf(stderr, "Error: failed to register custom die '%s': %s\n", 
-                name, dice_get_error(ctx));
-    }
-    
-    free(name);
-    return result;
-}
-
 void print_usage(const char *program_name) {
     printf("Usage: %s [options] <dice_notation>\n", program_name);
     printf("  dice_notation: Standard RPG notation (e.g., '3d6', '1d20+5', '2d8-1')\n");
@@ -146,7 +89,8 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
             
-            if (parse_die_definition(ctx, definition) != 0) {
+            if (dice_parse_and_register_die(ctx, definition) != 0) {
+                fprintf(stderr, "Error: %s\n", dice_get_error(ctx));
                 dice_context_destroy(ctx);
                 return 1;
             }

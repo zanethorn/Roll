@@ -501,6 +501,14 @@ const dice_custom_die_t* dice_lookup_custom_die(const dice_context_t *ctx, const
  */
 void dice_clear_custom_dice(dice_context_t *ctx);
 
+/**
+ * @brief Parse and register a custom die from command-line format
+ * @param ctx Context handle
+ * @param definition Definition string in format NAME={sides...}
+ * @return 0 on success, -1 on error
+ */
+int dice_parse_and_register_die(dice_context_t *ctx, const char *definition);
+
 #ifdef __cplusplus
 }
 #endif

@@ -398,3 +398,83 @@ void dice_clear_custom_dice(dice_context_t *ctx) {
     
     ctx->custom_dice.count = 0;
 }
+
+/**
+ * @brief Parse and register a custom die from command-line format
+ * @param ctx Context handle
+ * @param definition Definition string in format NAME={sides...}
+ * @return 0 on success, -1 on error
+ */
+int dice_parse_and_register_die(dice_context_t *ctx, const char *definition) {
+    if (!ctx || !definition) return -1;
+    
+    // Expected format: NAME={sides...} or NAME=definition
+    const char *equals = strchr(definition, '=');
+    if (!equals) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "--die format should be NAME={definition}, got '%s'", definition);
+        ctx->error.has_error = true;
+        return -1;
+    }
+    
+    // Extract name
+    size_t name_len = equals - definition;
+    if (name_len == 0) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "--die requires a name before '='");
+        ctx->error.has_error = true;
+        return -1;
+    }
+    
+    char *name = malloc(name_len + 1);
+    if (!name) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Memory allocation failed");
+        ctx->error.has_error = true;
+        return -1;
+    }
+    strncpy(name, definition, name_len);
+    name[name_len] = '\0';
+    
+    // Parse the definition part using our parser
+    const char *def_str = equals + 1;
+    
+    // Create a temporary dice expression to parse the custom die
+    size_t temp_expr_len = strlen(def_str) + 10;
+    char *temp_expr = malloc(temp_expr_len);
+    if (!temp_expr) {
+        free(name);
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Memory allocation failed");
+        ctx->error.has_error = true;
+        return -1;
+    }
+    snprintf(temp_expr, temp_expr_len, "1d%s", def_str);
+    
+    // Parse the expression to extract custom die definition
+    dice_ast_node_t *ast = dice_parse(ctx, temp_expr);
+    free(temp_expr);
+    
+    if (!ast || ast->type != DICE_NODE_DICE_OP || ast->data.dice_op.dice_type != DICE_DICE_CUSTOM) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Invalid custom die definition '%s'", def_str);
+        ctx->error.has_error = true;
+        free(name);
+        return -1;
+    }
+    
+    if (!ast->data.dice_op.custom_die) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Could not parse custom die definition '%s'", def_str);
+        ctx->error.has_error = true;
+        free(name);
+        return -1;
+    }
+    
+    // Register the custom die
+    const dice_custom_die_t *custom_die = ast->data.dice_op.custom_die;
+    int result = dice_register_custom_die(ctx, name, custom_die->sides, custom_die->side_count);
+    
+    free(name);
+    return result;
+}
