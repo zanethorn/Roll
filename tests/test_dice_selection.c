@@ -164,6 +164,69 @@ int test_selection_in_complex_expressions() {
     return 1;
 }
 
+int test_shorthand_syntax() {
+    dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
+    
+    // Test basic shorthand operations
+    dice_eval_result_t result = dice_roll_expression(ctx, "4d6k3");
+    TEST_ASSERT(result.success, "Shorthand 'k' (keep high) operation succeeds");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Shorthand keep result in valid range");
+    
+    result = dice_roll_expression(ctx, "5d6d2");
+    TEST_ASSERT(result.success, "Shorthand 'd' (drop low) operation succeeds");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Shorthand drop result in valid range");
+    
+    // Test uppercase shorthand
+    result = dice_roll_expression(ctx, "4d6K3");
+    TEST_ASSERT(result.success, "Uppercase shorthand 'K' works");
+    
+    result = dice_roll_expression(ctx, "5d6D2");
+    TEST_ASSERT(result.success, "Uppercase shorthand 'D' works");
+    
+    // Test shorthand equivalence with full syntax using fixed seeds
+    dice_rng_vtable_t rng = dice_create_system_rng(98765);
+    dice_context_set_rng(ctx, &rng);
+    
+    dice_eval_result_t result1 = dice_roll_expression(ctx, "3d6k3");  // shorthand for kh3
+    TEST_ASSERT(result1.success, "3d6k3 succeeds");
+    
+    dice_context_reset(ctx);
+    rng = dice_create_system_rng(98765);  // Same seed
+    dice_context_set_rng(ctx, &rng);
+    
+    dice_eval_result_t result2 = dice_roll_expression(ctx, "3d6kh3");  // full syntax
+    TEST_ASSERT(result2.success, "3d6kh3 succeeds");
+    TEST_ASSERT(result1.value == result2.value, "3d6k3 equals 3d6kh3 with same seed");
+    
+    // Test 'd' shorthand equals 'dl' with fixed seeds
+    dice_context_reset(ctx);
+    rng = dice_create_system_rng(11111);
+    dice_context_set_rng(ctx, &rng);
+    
+    result1 = dice_roll_expression(ctx, "8d4d4");  // shorthand for dl4
+    TEST_ASSERT(result1.success, "8d4d4 succeeds");
+    
+    dice_context_reset(ctx);
+    rng = dice_create_system_rng(11111);  // Same seed
+    dice_context_set_rng(ctx, &rng);
+    
+    result2 = dice_roll_expression(ctx, "8d4dl4");  // full syntax
+    TEST_ASSERT(result2.success, "8d4dl4 succeeds");
+    TEST_ASSERT(result1.value == result2.value, "8d4d4 equals 8d4dl4 with same seed");
+    
+    // Test shorthand in complex expressions
+    result = dice_roll_expression(ctx, "1d20+4d6k3");
+    TEST_ASSERT(result.success, "Shorthand in addition works");
+    TEST_ASSERT(result.value >= 4 && result.value <= 38, "Complex expression with shorthand in valid range");
+    
+    result = dice_roll_expression(ctx, "4d6k3+3d8d1");
+    TEST_ASSERT(result.success, "Multiple shorthands work");
+    TEST_ASSERT(result.value >= 5 && result.value <= 34, "Multiple shorthands result in valid range");
+    
+    dice_context_destroy(ctx);
+    return 1;
+}
+
 // =============================================================================
 // Test Runner
 // =============================================================================
@@ -177,6 +240,7 @@ int main() {
     RUN_TEST(test_selection_error_handling);
     RUN_TEST(test_selection_edge_cases);
     RUN_TEST(test_selection_in_complex_expressions);
+    RUN_TEST(test_shorthand_syntax);
     
     printf("All dice selection tests passed!\\n");
     return 0;

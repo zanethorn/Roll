@@ -14,6 +14,12 @@ The Roll library supports a comprehensive dice notation grammar that includes st
 NUMBER      := [0-9]+
 IDENTIFIER  := [a-zA-Z][a-zA-Z0-9_]*
 DICE        := 'd' | 'D'
+KEEP_HIGH   := 'kh' | 'KH'  // Keep highest
+KEEP_LOW    := 'kl' | 'KL'  // Keep lowest
+DROP_HIGH   := 'dh' | 'DH'  // Drop highest
+DROP_LOW    := 'dl' | 'DL'  // Drop lowest  
+KEEP        := 'k' | 'K'    // Shorthand for keep highest
+DROP        := 'd' | 'D'    // Shorthand for drop lowest (context-dependent)
 PLUS        := '+'
 MINUS       := '-'
 MULTIPLY    := '*'
@@ -35,7 +41,9 @@ factor := NUMBER
         | LPAREN expression RPAREN
         | MINUS factor
 
-dice_expression := dice_count? DICE dice_sides
+dice_expression := dice_count? DICE dice_sides keep_drop_modifier?
+
+keep_drop_modifier := (KEEP_HIGH | KEEP_LOW | DROP_HIGH | DROP_LOW | KEEP | DROP) NUMBER
 
 dice_count := NUMBER
 
@@ -71,6 +79,19 @@ d20         // Implicit 1d20
 1d20+5      // d20 with +5 bonus
 2d8-1       // 2d8 with -1 penalty
 3d6+2d4     // Mixed dice types
+```
+
+### Dice Selection Operations
+
+```
+4d6kh3      // Keep highest 3 of 4d6
+4d6kl2      // Keep lowest 2 of 4d6
+5d6dh2      // Drop highest 2 of 5d6
+5d6dl1      // Drop lowest 1 of 5d6
+3d6k3       // Shorthand for kh3 (keep highest 3)
+8d4d4       // Shorthand for dl4 (drop lowest 4)
+4d6K2       // Case insensitive (same as k2)
+6d8D3       // Case insensitive (same as d3)
 ```
 
 ### Mathematical Expressions
@@ -146,10 +167,6 @@ typedef enum {
 
 ```
 EXCLAMATION := '!'          // Exploding dice
-KEEP_HIGH   := 'kh' | 'KH'  // Keep highest
-KEEP_LOW    := 'kl' | 'KL'  // Keep lowest
-DROP_HIGH   := 'dh' | 'DH'  // Drop highest
-DROP_LOW    := 'dl' | 'DL'  // Drop lowest
 GREATER     := '>'          // Success counting
 LESS        := '<'          // Success counting
 REROLL      := 'r' | 'R'    // Reroll
@@ -162,14 +179,11 @@ FATE        := 'f' | 'F'    // FATE dice
 dice_expression := dice_count? DICE dice_sides modifier*
 
 modifier := exploding_modifier
-          | keep_drop_modifier
           | success_modifier
           | reroll_modifier
           | fate_modifier
 
 exploding_modifier := EXCLAMATION (GREATER NUMBER)?
-
-keep_drop_modifier := (KEEP_HIGH | KEEP_LOW | DROP_HIGH | DROP_LOW) NUMBER
 
 success_modifier := (GREATER | LESS) NUMBER
 
@@ -183,8 +197,6 @@ fate_modifier := FATE
 ```
 1d6!            // Exploding dice (reroll on 6)
 1d6!>4          // Explode on 4, 5, or 6
-4d6kh3          // Keep highest 3 of 4d6
-4d6dl1          // Drop lowest 1 of 4d6
 6d6>4           // Count successes (≥4)
 3d6r1           // Reroll 1s
 4df             // FATE dice (+1, -1, 0)
