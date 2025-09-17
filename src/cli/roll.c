@@ -75,7 +75,8 @@ void print_usage(const char *program_name) {
     printf("\n");
     printf("  Custom Die Examples:\n");
     printf("    %s '1d{-1,0,1}'                    # Inline FATE die\n", program_name);
-    printf("    %s --die F={-1,0,1} '4dF'         # Named FATE dice\n", program_name);
+    printf("    %s '4dF'                          # FATE dice (auto-registered)\n", program_name);
+    printf("    %s --die F={-1,0,1} '4dF'         # Named FATE dice (explicit)\n", program_name);
     printf("    %s --die HQ='{0:\"Skull\",1:\"Shield\"}' '1dHQ'  # Labeled dice\n", program_name);
     printf("    %s '1d{\"Earth\",\"Wind\",\"Fire\"}'      # String-only dice\n", program_name);
     printf("\n");
