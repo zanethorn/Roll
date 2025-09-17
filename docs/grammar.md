@@ -25,8 +25,8 @@ GT          := '>'          // Greater than
 LT          := '<'          // Less than
 GTE         := '>='         // Greater than or equal
 LTE         := '<='         // Less than or equal
-EQ          := '=='         // Equal
-NEQ         := '!='         // Not equal
+EQ          := '='          // Equal
+NEQ         := '<>'         // Not equal
 PLUS        := '+'
 MINUS       := '-'
 MULTIPLY    := '*'
@@ -110,8 +110,8 @@ d20         // Implicit 1d20
 4d10s<5     // Select all dice less than 5
 5d6s>=4     // Select all dice greater than or equal to 4
 6d6s<=3     // Select all dice less than or equal to 3
-8d6s==6     // Select all dice equal to 6
-4d6s!=1     // Select all dice not equal to 1
+8d6s=6      // Select all dice equal to 6
+4d6s<>1     // Select all dice not equal to 1
 3d6S>3      // Case insensitive (same as s>3)
 ```
 

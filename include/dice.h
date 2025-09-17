@@ -56,8 +56,8 @@ typedef enum {
     DICE_OP_LT,     // <
     DICE_OP_GTE,    // >=
     DICE_OP_LTE,    // <=
-    DICE_OP_EQ,     // ==
-    DICE_OP_NEQ     // !=
+    DICE_OP_EQ,     // =
+    DICE_OP_NEQ     // <>
 } dice_binary_op_t;
 
 /**

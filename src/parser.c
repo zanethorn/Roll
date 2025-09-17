@@ -415,12 +415,12 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         } else if (*state->pos == '<' && *(state->pos + 1) == '=') {
             comp_op = DICE_OP_LTE;
             state->pos += 2;
-        } else if (*state->pos == '=' && *(state->pos + 1) == '=') {
-            comp_op = DICE_OP_EQ;
-            state->pos += 2;
-        } else if (*state->pos == '!' && *(state->pos + 1) == '=') {
+        } else if (*state->pos == '<' && *(state->pos + 1) == '>') {
             comp_op = DICE_OP_NEQ;
             state->pos += 2;
+        } else if (*state->pos == '=') {
+            comp_op = DICE_OP_EQ;
+            state->pos++;
         } else if (*state->pos == '>') {
             comp_op = DICE_OP_GT;
             state->pos++;
@@ -429,7 +429,7 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
             state->pos++;
         } else {
             snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
-                    "Expected comparison operator after 's' (>, <, >=, <=, ==, !=)");
+                    "Expected comparison operator after 's' (>, <, >=, <=, =, <>)");
             state->ctx->error.has_error = true;
             return NULL;
         }
@@ -463,8 +463,8 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
             case DICE_OP_LT: op_str = "<"; break;
             case DICE_OP_GTE: op_str = ">="; break;
             case DICE_OP_LTE: op_str = "<="; break;
-            case DICE_OP_EQ: op_str = "=="; break;
-            case DICE_OP_NEQ: op_str = "!="; break;
+            case DICE_OP_EQ: op_str = "="; break;
+            case DICE_OP_NEQ: op_str = "<>"; break;
             default: op_str = "?"; break;
         }
         

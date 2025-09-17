@@ -1,7 +1,7 @@
 #include "test_common.h"
 
 // =============================================================================
-// Conditional Selection Tests (s>N, s<N, s>=N, s<=N, s==N, s!=N)
+// Conditional Selection Tests (s>N, s<N, s>=N, s<=N, s=N, s<>N)
 // =============================================================================
 
 int test_basic_conditional_selection() {
@@ -28,14 +28,14 @@ int test_basic_conditional_selection() {
     TEST_ASSERT(result.value >= 0 && result.value <= 18, "s<=5 result in valid range");
     
     // Test equality
-    result = dice_roll_expression(ctx, "10d6s==6");
-    TEST_ASSERT(result.success, "Conditional selection s==6 succeeds");
-    TEST_ASSERT(result.value >= 0 && result.value <= 60, "s==6 result in valid range");
+    result = dice_roll_expression(ctx, "10d6s=6");
+    TEST_ASSERT(result.success, "Conditional selection s=6 succeeds");
+    TEST_ASSERT(result.value >= 0 && result.value <= 60, "s=6 result in valid range");
     
     // Test inequality
-    result = dice_roll_expression(ctx, "4d6s!=1");
-    TEST_ASSERT(result.success, "Conditional selection s!=1 succeeds");
-    TEST_ASSERT(result.value >= 0 && result.value <= 24, "s!=1 result in valid range");
+    result = dice_roll_expression(ctx, "4d6s<>1");
+    TEST_ASSERT(result.success, "Conditional selection s<>1 succeeds");
+    TEST_ASSERT(result.value >= 0 && result.value <= 24, "s<>1 result in valid range");
     
     dice_context_destroy(ctx);
     return 1;
