@@ -36,7 +36,18 @@ make
 
 ### C API Usage
 
-**Recommended Context-Based API (New):**
+**Simple API:**
+```c
+#include "dice.h"
+
+// Simple dice rolling
+int result = dice_roll(6);                      // Roll 1d6
+int sum = dice_roll_multiple(3, 6);             // Roll 3d6
+int total = dice_roll_notation("3d6+2");        // Parse notation
+int quick = dice_roll_quick("2d8+1", 12345);   // Roll with seed
+```
+
+**Context-Based API (Advanced):**
 ```c
 #include "dice.h"
 
@@ -57,18 +68,7 @@ if (result.success) {
 dice_context_destroy(ctx);
 ```
 
-**Legacy API (Deprecated but still supported):**
-```c
-#include "dice.h"
-
-dice_init(12345);  // Optional seed
-int result = dice_roll(6);                    // Roll 1d6
-int sum = dice_roll_multiple(3, 6);           // Roll 3d6
-int total = dice_roll_notation("3d6+2");      // Parse notation
-dice_cleanup();
-```
-
-> **Note**: The legacy API is deprecated and creates temporary contexts for each operation, which is less efficient. New applications should use the context-based API for better performance and thread safety.
+The simple API functions create temporary contexts internally for ease of use, while the context-based API provides full control over memory, RNG, and advanced features.
 
 ### Language Bindings
 

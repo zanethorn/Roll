@@ -11,7 +11,20 @@
 dice_custom_side_t dice_custom_side(int64_t value, const char *label) {
     dice_custom_side_t side;
     side.value = value;
-    side.label = label ? strdup(label) : NULL;
+    
+    if (label) {
+        side.label = strdup(label);
+    } else {
+        // Default label to string version of value
+        char *default_label = malloc(32); // Should be enough for any int64_t
+        if (default_label) {
+            snprintf(default_label, 32, "%lld", (long long)value);
+            side.label = default_label;
+        } else {
+            side.label = NULL;
+        }
+    }
+    
     return side;
 }
 
@@ -49,8 +62,7 @@ int dice_register_custom_die(dice_context_t *ctx, const char *name,
     
     // Copy sides
     for (size_t i = 0; i < side_count; i++) {
-        die->sides[i].value = sides[i].value;
-        die->sides[i].label = sides[i].label ? strdup(sides[i].label) : NULL;
+        die->sides[i] = dice_custom_side(sides[i].value, sides[i].label);
     }
     
     ctx->custom_dice.count++;

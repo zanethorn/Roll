@@ -136,105 +136,74 @@ const char* dice_version(void) {
 }
 
 // =============================================================================
-// Legacy API Wrapper Functions (Stateless)
+// Simple Wrapper Functions (No Static State)
 // =============================================================================
 
-// Global state for legacy API compatibility (thread-local if available)
-#ifdef _Thread_local
-static _Thread_local uint32_t legacy_seed = 0;
-static _Thread_local dice_rng_vtable_t *legacy_rng = NULL;
-static _Thread_local int legacy_rng_counter = 0;
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
-static _Thread_local uint32_t legacy_seed = 0;
-static _Thread_local dice_rng_vtable_t *legacy_rng = NULL;
-static _Thread_local int legacy_rng_counter = 0;
-#else
-static uint32_t legacy_seed = 0;
-static dice_rng_vtable_t *legacy_rng = NULL;
-static int legacy_rng_counter = 0;
-#endif
-
-void dice_init(uint32_t seed) {
-    legacy_seed = seed;
-    legacy_rng_counter = 0;
-    
-    // Clean up any existing legacy RNG
-    if (legacy_rng) {
-        if (legacy_rng->cleanup) {
-            legacy_rng->cleanup(legacy_rng->state);
-        }
-        free(legacy_rng);
-        legacy_rng = NULL;
-    }
-}
-
-static dice_rng_vtable_t* get_legacy_rng(void) {
-    if (!legacy_rng) {
-        legacy_rng = malloc(sizeof(dice_rng_vtable_t));
-        if (legacy_rng) {
-            *legacy_rng = dice_create_system_rng(legacy_seed);
-        }
-    }
-    return legacy_rng;
-}
-
 int dice_roll(int sides) {
-    if (sides <= 0) return -1;
-    
-    dice_rng_vtable_t *rng = get_legacy_rng();
-    if (!rng) return -1;
-    
-    // Use counter to ensure different results for same seed
-    legacy_rng_counter++;
-    return rng->roll(rng->state, sides);
+    return dice_roll_multiple(1, sides);
 }
 
 int dice_roll_multiple(int count, int sides) {
     if (count <= 0 || sides <= 0) return -1;
     
-    dice_rng_vtable_t *rng = get_legacy_rng();
-    if (!rng) return -1;
+    // Create temporary context for this operation
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
+    if (!ctx) return -1;
+    
+    // Use time-based seed for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(0);
+    dice_context_set_rng(ctx, &rng);
     
     int sum = 0;
     for (int i = 0; i < count; i++) {
-        legacy_rng_counter++;
-        int roll = rng->roll(rng->state, sides);
-        if (roll < 0) return -1;
+        int roll = ctx->rng.roll(ctx->rng.state, sides);
+        if (roll < 0) {
+            dice_context_destroy(ctx);
+            return -1;
+        }
         sum += roll;
     }
     
+    dice_context_destroy(ctx);
     return sum;
 }
 
 int dice_roll_individual(int count, int sides, int *results) {
     if (count <= 0 || sides <= 0 || !results) return -1;
     
-    dice_rng_vtable_t *rng = get_legacy_rng();
-    if (!rng) return -1;
+    // Create temporary context for this operation
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
+    if (!ctx) return -1;
+    
+    // Use time-based seed for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(0);
+    dice_context_set_rng(ctx, &rng);
     
     int sum = 0;
     for (int i = 0; i < count; i++) {
-        legacy_rng_counter++;
-        int roll = rng->roll(rng->state, sides);
-        if (roll < 0) return -1;
+        int roll = ctx->rng.roll(ctx->rng.state, sides);
+        if (roll < 0) {
+            dice_context_destroy(ctx);
+            return -1;
+        }
         results[i] = roll;
         sum += roll;
     }
     
+    dice_context_destroy(ctx);
     return sum;
 }
 
 int dice_roll_notation(const char *dice_notation) {
     if (!dice_notation) return -1;
     
+    // Create temporary context for this operation
     dice_context_t *ctx = dice_context_create(4096, DICE_FEATURE_ALL);
     if (!ctx) return -1;
     
-    // Create a separate RNG for this context to avoid sharing state
-    dice_rng_vtable_t rng = dice_create_system_rng(legacy_seed + legacy_rng_counter);
+    // Use time-based seed for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(0);
     dice_context_set_rng(ctx, &rng);
-    
-    legacy_rng_counter++;
     
     dice_eval_result_t result = dice_roll_expression(ctx, dice_notation);
     
@@ -247,47 +216,24 @@ int dice_roll_notation(const char *dice_notation) {
     return ret_val;
 }
 
-void dice_set_rng(const dice_rng_vtable_t *rng_vtable) {
-    if (!rng_vtable) return;
+int dice_roll_quick(const char *dice_notation, uint32_t seed) {
+    if (!dice_notation) return -1;
     
-    // Clean up existing legacy RNG
-    if (legacy_rng) {
-        if (legacy_rng->cleanup) {
-            legacy_rng->cleanup(legacy_rng->state);
-        }
-        free(legacy_rng);
+    // Create temporary context for this operation
+    dice_context_t *ctx = dice_context_create(4096, DICE_FEATURE_ALL);
+    if (!ctx) return -1;
+    
+    // Use provided seed or time-based for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(seed);
+    dice_context_set_rng(ctx, &rng);
+    
+    dice_eval_result_t result = dice_roll_expression(ctx, dice_notation);
+    
+    int ret_val = -1;
+    if (result.success && !dice_has_error(ctx)) {
+        ret_val = (int)result.value;
     }
     
-    // Create a deep copy of the RNG - we need to avoid sharing state
-    legacy_rng = malloc(sizeof(dice_rng_vtable_t));
-    if (legacy_rng) {
-        // Copy the function pointers
-        legacy_rng->init = rng_vtable->init;
-        legacy_rng->roll = rng_vtable->roll;
-        legacy_rng->rand = rng_vtable->rand;
-        legacy_rng->cleanup = rng_vtable->cleanup;
-        
-        // Create our own copy of the state by creating a new RNG with same seed
-        // This is a bit of a hack but avoids the double-free issue
-        if (rng_vtable->state) {
-            *legacy_rng = dice_create_system_rng(legacy_seed);
-        } else {
-            legacy_rng->state = NULL;
-        }
-    }
-}
-
-const dice_rng_vtable_t* dice_get_rng(void) {
-    return get_legacy_rng();
-}
-
-void dice_cleanup(void) {
-    if (legacy_rng) {
-        if (legacy_rng->cleanup) {
-            legacy_rng->cleanup(legacy_rng->state);
-        }
-        free(legacy_rng);
-        legacy_rng = NULL;
-    }
-    legacy_rng_counter = 0;
+    dice_context_destroy(ctx);
+    return ret_val;
 }

@@ -260,23 +260,13 @@ typedef struct {
 } dice_eval_result_t;
 
 // =============================================================================
-// Public API - Basic Dice Operations (Stateless Wrappers)
+// Simple API - Convenience Functions
 // =============================================================================
-
-/**
- * @brief Initialize the dice library with a seed for random number generation
- * @param seed Random seed value (use 0 for time-based seed)
- * @note This function is deprecated. Use dice_context_create() for new applications.
- * @deprecated This function creates a temporary context for each operation.
- */
-void dice_init(uint32_t seed);
 
 /**
  * @brief Roll a single die with specified number of sides
  * @param sides Number of sides on the die (must be > 0)
  * @return Random value between 1 and sides (inclusive)
- * @note This function is deprecated. Use dice_context_create() and dice_roll_expression() for new applications.
- * @deprecated This function creates a temporary context for each operation.
  */
 int dice_roll(int sides);
 
@@ -285,8 +275,6 @@ int dice_roll(int sides);
  * @param count Number of dice to roll
  * @param sides Number of sides on each die
  * @return Sum of all dice rolls
- * @note This function is deprecated. Use dice_context_create() and dice_roll_expression() for new applications.
- * @deprecated This function creates a temporary context for each operation.
  */
 int dice_roll_multiple(int count, int sides);
 
@@ -296,8 +284,6 @@ int dice_roll_multiple(int count, int sides);
  * @param sides Number of sides on each die
  * @param results Array to store individual dice results (must be at least count elements)
  * @return Sum of all dice rolls
- * @note This function is deprecated. Use dice_context_create() and dice_roll_expression() for new applications.
- * @deprecated This function creates a temporary context for each operation.
  */
 int dice_roll_individual(int count, int sides, int *results);
 
@@ -305,37 +291,17 @@ int dice_roll_individual(int count, int sides, int *results);
  * @brief Roll dice using standard RPG notation with full EBNF expression support
  * @param dice_notation String representing dice notation
  * @return Result of the dice roll, or -1 on error
- * @note This function is deprecated. Use dice_context_create() and dice_roll_expression() for new applications.
- * @deprecated This function creates a temporary context for each operation.
  */
 int dice_roll_notation(const char *dice_notation);
 
 /**
- * @brief Set a custom RNG for the library (optional)
- * @param rng_vtable Custom RNG vtable
- * @note This function is deprecated. Use dice_context_create() and dice_context_set_rng() for new applications.
- * @deprecated This function has no effect as there is no global state.
+ * @brief Instant dice rolling helper - creates context, evaluates expression, and cleans up
+ * @param dice_notation String representing dice notation
+ * @param seed Random seed (use 0 for time-based randomness)
+ * @return Result of the dice roll, or -1 on error
+ * @note This is a convenience function that handles all context management internally
  */
-void dice_set_rng(const dice_rng_vtable_t *rng_vtable);
-
-/**
- * @brief Get the current RNG vtable
- * @return Current RNG vtable (read-only)
- * @note This function is deprecated. Use dice_context_create() for new applications.
- * @deprecated This function returns NULL as there is no global state.
- */
-const dice_rng_vtable_t* dice_get_rng(void);
-
-/**
- * @brief Cleanup dice library resources
- * @note This function is deprecated. Use dice_context_destroy() for new applications.
- * @deprecated This function has no effect as there is no global state.
- */
-void dice_cleanup(void);
-
-// =============================================================================
-// Core Utility Functions
-// =============================================================================
+int dice_roll_quick(const char *dice_notation, uint32_t seed);
 
 /**
  * @brief Get the version of the dice library
