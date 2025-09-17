@@ -26,25 +26,30 @@ int test_new_syntax_requirements() {
     return 1;
 }
 
-int test_old_syntax_rejection() {
+int test_new_syntax_acceptance() {
     dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
     
-    // Test that old 'd' for drop is rejected
+    // Test that 'd' for drop is now accepted
     dice_eval_result_t result = dice_roll_expression(ctx, "4d6d1");
-    TEST_ASSERT(!result.success, "Old 'd' drop syntax should be rejected");
+    TEST_ASSERT(result.success, "New 'd' drop syntax should be accepted");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Drop 1 low result in valid range");
     
-    // Test that two-character combinations are rejected
+    // Test that two-character combinations are now accepted
     result = dice_roll_expression(ctx, "4d6kh3");
-    TEST_ASSERT(!result.success, "Two-character 'kh' should be rejected");
+    TEST_ASSERT(result.success, "Two-character 'kh' should be accepted");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep 3 high result in valid range");
     
     result = dice_roll_expression(ctx, "4d6kl2");
-    TEST_ASSERT(!result.success, "Two-character 'kl' should be rejected");
+    TEST_ASSERT(result.success, "Two-character 'kl' should be accepted");
+    TEST_ASSERT(result.value >= 2 && result.value <= 12, "Keep 2 low result in valid range");
     
     result = dice_roll_expression(ctx, "4d6dh1");
-    TEST_ASSERT(!result.success, "Two-character 'dh' should be rejected");
+    TEST_ASSERT(result.success, "Two-character 'dh' should be accepted");
+    TEST_ASSERT(result.value >= 3 && result.value <= 15, "Drop 1 high result in valid range");
     
     result = dice_roll_expression(ctx, "4d6dl2");
-    TEST_ASSERT(!result.success, "Two-character 'dl' should be rejected");
+    TEST_ASSERT(result.success, "Two-character 'dl' should be accepted");
+    TEST_ASSERT(result.value >= 2 && result.value <= 12, "Drop 2 low result in valid range");
     
     dice_context_destroy(ctx);
     return 1;
@@ -196,6 +201,9 @@ int test_case_insensitivity() {
     result = dice_roll_expression(ctx, "4d6L1");
     TEST_ASSERT(result.success, "Uppercase L works");
     
+    result = dice_roll_expression(ctx, "4d6D1");
+    TEST_ASSERT(result.success, "Uppercase D works");
+    
     result = dice_roll_expression(ctx, "6d6S5");
     TEST_ASSERT(result.success, "Uppercase S works");
     
@@ -235,7 +243,7 @@ int main() {
     printf("Running comprehensive new selection syntax tests...\n\n");
     
     RUN_TEST(test_new_syntax_requirements);
-    RUN_TEST(test_old_syntax_rejection);
+    RUN_TEST(test_new_syntax_acceptance);
     RUN_TEST(test_default_values);
     RUN_TEST(test_equivalence_relationships);
     RUN_TEST(test_edge_cases);
