@@ -401,8 +401,8 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
             selection->original_syntax = syntax;
         }
         
-        // Update the node to be a selection operation
-        node->data.dice_op.dice_type = DICE_DICE_SELECT;
+        // Update the node to be a filter operation
+        node->data.dice_op.dice_type = DICE_DICE_FILTER;
         node->data.dice_op.modifier = select_count;
         node->data.dice_op.selection = selection;
         
@@ -478,8 +478,8 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         snprintf(syntax, syntax_len, "s%s%lld", op_str, (long long)comp_value->data.literal.value);
         selection->original_syntax = syntax;
         
-        // Update the node to be a conditional selection operation
-        node->data.dice_op.dice_type = DICE_DICE_CONDITIONAL_SELECT;
+        // Update the node to be a filter operation
+        node->data.dice_op.dice_type = DICE_DICE_FILTER;
         node->data.dice_op.modifier = comp_value;
         node->data.dice_op.selection = selection;
     }

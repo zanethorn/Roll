@@ -70,8 +70,7 @@ typedef enum {
     DICE_DICE_EXPLODING, // NdS!
     DICE_DICE_POOL,      // NdS pool
     DICE_DICE_FATE,      // NdF FATE dice
-    DICE_DICE_SELECT,    // NdS with selection (kh/kl/dh/dl unified)
-    DICE_DICE_CONDITIONAL_SELECT, // NdS with conditional selection (s>N, s<N, etc.)
+    DICE_DICE_FILTER,    // NdS with filter operations (kh/kl/dh/dl/s>N/s<N/etc. unified)
     DICE_DICE_CUSTOM     // Custom dice (NdCUSTOM or Nd{...})
 } dice_dice_type_t;
 

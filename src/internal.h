@@ -29,24 +29,14 @@ void* arena_alloc(dice_context_t *ctx, size_t size);
 void trace_atomic_roll(dice_context_t *ctx, int sides, int result);
 
 /**
- * @brief Evaluate dice selection operations (unified keep/drop)
+ * @brief Evaluate dice filter operations (unified keep/drop/conditional)
  * @param ctx Context handle for evaluation and tracing
  * @param count Number of dice to roll
  * @param sides Number of sides on each die
- * @param selection Selection parameters (count, high/low, original syntax)
- * @return Sum of selected dice values
+ * @param selection Filter parameters (count, high/low, conditional, original syntax)
+ * @return Sum of filtered dice values
  */
-int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection);
-
-/**
- * @brief Evaluate dice conditional selection operations (s>N, s<N, etc.)
- * @param ctx Context handle for evaluation and tracing
- * @param count Number of dice to roll
- * @param sides Number of sides on each die
- * @param selection Conditional selection parameters (comparison operator, value)
- * @return Sum of dice values that match the condition
- */
-int64_t evaluate_dice_conditional_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection);
+int64_t evaluate_dice_filter(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection);
 
 #ifdef __cplusplus
 }

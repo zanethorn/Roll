@@ -117,7 +117,7 @@ static const char* get_dice_type_name(dice_dice_type_t type) {
         case DICE_DICE_EXPLODING: return "EXPLODING";
         case DICE_DICE_POOL: return "POOL";
         case DICE_DICE_FATE: return "FATE";
-        case DICE_DICE_SELECT: return "SELECT";
+        case DICE_DICE_FILTER: return "FILTER";
         case DICE_DICE_CUSTOM: return "CUSTOM";
         default: return "UNKNOWN";
     }
