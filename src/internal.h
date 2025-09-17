@@ -28,6 +28,16 @@ void* arena_alloc(dice_context_t *ctx, size_t size);
  */
 void trace_atomic_roll(dice_context_t *ctx, int sides, int result);
 
+/**
+ * @brief Evaluate dice selection operations (unified keep/drop)
+ * @param ctx Context handle for evaluation and tracing
+ * @param count Number of dice to roll
+ * @param sides Number of sides on each die
+ * @param selection Selection parameters (count, high/low, original syntax)
+ * @return Sum of selected dice values
+ */
+int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection);
+
 #ifdef __cplusplus
 }
 #endif

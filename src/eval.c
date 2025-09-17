@@ -133,7 +133,7 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
                 }
                 
             } else {
-                // Handle standard dice
+                // Handle standard dice (basic or with selection)
                 dice_eval_result_t sides_result = dice_evaluate(ctx, node->data.dice_op.sides);
                 if (!sides_result.success) return sides_result;
                 int64_t sides = sides_result.value;
@@ -153,20 +153,25 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
                     return result;
                 }
                 
-                // Roll standard dice
-                for (int i = 0; i < count; i++) {
-                    int roll = ctx->rng.roll(ctx->rng.state, (int)sides);
-                    if (roll < 0) {
-                        snprintf(ctx->error.message, sizeof(ctx->error.message),
-                                "RNG error during dice roll");
-                        ctx->error.has_error = true;
-                        return result;
+                if (node->data.dice_op.dice_type == DICE_DICE_SELECT) {
+                    // Handle selection operations (kh/kl/dh/dl)
+                    sum = evaluate_dice_selection(ctx, count, (int)sides, node->data.dice_op.selection);
+                } else {
+                    // Roll standard dice (basic operation)
+                    for (int i = 0; i < count; i++) {
+                        int roll = ctx->rng.roll(ctx->rng.state, (int)sides);
+                        if (roll < 0) {
+                            snprintf(ctx->error.message, sizeof(ctx->error.message),
+                                    "RNG error during dice roll");
+                            ctx->error.has_error = true;
+                            return result;
+                        }
+                        
+                        // Add to trace
+                        trace_atomic_roll(ctx, (int)sides, roll);
+                        
+                        sum += roll;
                     }
-                    
-                    // Add to trace
-                    trace_atomic_roll(ctx, (int)sides, roll);
-                    
-                    sum += roll;
                 }
             }
             
@@ -189,6 +194,98 @@ dice_eval_result_t dice_evaluate(dice_context_t *ctx, const dice_ast_node_t *nod
     }
     
     return result;
+}
+
+// Comparison function for sorting dice rolls
+static int compare_rolls_desc(const void *a, const void *b) {
+    int roll_a = *(const int*)a;
+    int roll_b = *(const int*)b;
+    return roll_b - roll_a; // Descending order
+}
+
+static int compare_rolls_asc(const void *a, const void *b) {
+    int roll_a = *(const int*)a;
+    int roll_b = *(const int*)b;
+    return roll_a - roll_b; // Ascending order
+}
+
+int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection) {
+    if (!ctx || !selection) return 0;
+    
+    // Calculate actual selection count
+    int64_t actual_select_count;
+    if (selection->count < 0) {
+        // Negative count means drop operation - convert to select count
+        int64_t drop_count = -(selection->count);
+        actual_select_count = count - drop_count;
+        
+        if (drop_count >= count) {
+            snprintf(ctx->error.message, sizeof(ctx->error.message),
+                    "Cannot drop %lld dice from only %lld dice", 
+                    (long long)drop_count, (long long)count);
+            ctx->error.has_error = true;
+            return 0;
+        }
+    } else {
+        // Positive count means keep operation
+        actual_select_count = selection->count;
+        
+        if (actual_select_count > count) {
+            snprintf(ctx->error.message, sizeof(ctx->error.message),
+                    "Cannot keep %lld dice from only %lld dice", 
+                    (long long)actual_select_count, (long long)count);
+            ctx->error.has_error = true;
+            return 0;
+        }
+    }
+    
+    // Validate selection count
+    if (actual_select_count <= 0) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Invalid selection count: %lld (must be positive)", 
+                (long long)actual_select_count);
+        ctx->error.has_error = true;
+        return 0;
+    }
+    
+    // Allocate array to store all roll results
+    int *rolls = arena_alloc(ctx, count * sizeof(int));
+    if (!rolls) {
+        snprintf(ctx->error.message, sizeof(ctx->error.message),
+                "Failed to allocate memory for dice rolls");
+        ctx->error.has_error = true;
+        return 0;
+    }
+    
+    // Roll all dice and store results
+    for (int i = 0; i < count; i++) {
+        int roll = ctx->rng.roll(ctx->rng.state, sides);
+        if (roll < 0) {
+            snprintf(ctx->error.message, sizeof(ctx->error.message),
+                    "RNG error during dice roll");
+            ctx->error.has_error = true;
+            return 0;
+        }
+        rolls[i] = roll;
+        
+        // Add to trace with selection annotation
+        trace_atomic_roll(ctx, sides, roll);
+    }
+    
+    // Sort rolls based on selection type
+    if (selection->select_high) {
+        qsort(rolls, count, sizeof(int), compare_rolls_desc); // High to low
+    } else {
+        qsort(rolls, count, sizeof(int), compare_rolls_asc);  // Low to high
+    }
+    
+    // Sum the selected dice
+    int64_t sum = 0;
+    for (int i = 0; i < actual_select_count; i++) {
+        sum += rolls[i];
+    }
+    
+    return sum;
 }
 
 dice_eval_result_t dice_roll_expression(dice_context_t *ctx, const char *expression_str) {
