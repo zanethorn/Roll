@@ -19,6 +19,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Feature Flags**: Selective enabling of dice notation features
 - **Arena Memory Management**: Efficient context-based allocation
 - **Extended Testing**: Comprehensive test coverage for all components
+- **Reroll Operator**: Full reroll mechanics with `r` modifier (`3d6r`, `3d6r>=2`, `3d6r6`)
+
+### Dice Notation Support
+- **Basic Dice**: `1d6`, `3d6`, `1d20`, `d6` (implicit count)
+- **Mathematical**: `1d20+5`, `2d8-1`, `2*3`, `(1d6+2)*3`  
+- **Keep/Drop**: `4d6k3`, `4d6h3`, `5d6l2` (keep highest 3, keep highest 3, drop lowest 2)
+- **Conditional**: `3d6s>2`, `6d6s<=3`, `4d6s<>1` (count successes)
+- **Reroll**: `3d6r`, `3d6r1`, `3d6r>=2`, `3d6r6` (reroll mechanics)
+- **Custom Dice**: `1d{-1,0,1}`, `4dF`, `1d{"A","B","C"}` (custom die definitions)
+- **Case Insensitive**: All operators work with both cases (`k`/`K`, `r`/`R`, etc.)
 
 ### Enhanced
 - **Parser Architecture**: Recursive descent parser with operator precedence

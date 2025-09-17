@@ -93,6 +93,15 @@ void print_usage(FILE *stream, const char *program_name) {
     fprintf(stream, "    %s '6d6s6'    # Select all dice equal to 6 (default operator)\n", program_name);
     fprintf(stream, "    %s '6d6s'     # Select all dice equal to 1 (default value)\n", program_name);
     fprintf(stream, "\n");
+    fprintf(stream, "  Reroll Examples:\n");
+    fprintf(stream, "    %s '3d6r'     # Reroll all 1s (default)\n", program_name);
+    fprintf(stream, "    %s '3d6r1'    # Reroll all 1s (explicit)\n", program_name);
+    fprintf(stream, "    %s '3d6r6'    # Reroll all 6s\n", program_name);
+    fprintf(stream, "    %s '3d6r>=2'  # Reroll all dice >= 2 (keeps only 1s)\n", program_name);
+    fprintf(stream, "    %s '3d6r<5'   # Reroll all dice < 5 (keeps only 5s and 6s)\n", program_name);
+    fprintf(stream, "    %s '1d20r1'   # Reroll 1s on a d20\n", program_name);
+    fprintf(stream, "    %s '4d8r<=2'  # Reroll all dice <= 2 (keeps 3+ only)\n", program_name);
+    fprintf(stream, "\n");
     fprintf(stream, "  Custom Die Examples:\n");
     fprintf(stream, "    %s '1d{-1,0,1}'                    # Inline FATE die\n", program_name);
     fprintf(stream, "    %s '4dF'                          # FATE dice (auto-registered)\n", program_name);
