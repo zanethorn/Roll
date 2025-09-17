@@ -73,14 +73,14 @@ int test_selection_trace_conditional() {
     return 1;
 }
 
-int test_selection_trace_drop_low() {
+int test_selection_trace_keep_low() {
     dice_context_t *ctx = dice_context_create(64 * 1024, DICE_FEATURE_ALL);
     
     // Set a fixed seed for reproducible testing
     dice_rng_vtable_t rng = dice_create_system_rng(789);
     dice_context_set_rng(ctx, &rng);
     
-    // Test drop low selection
+    // Test keep low selection
     dice_eval_result_t result = dice_roll_expression(ctx, "5d8l1");
     TEST_ASSERT(result.success, "5d8l1 evaluation succeeds");
     
@@ -96,7 +96,7 @@ int test_selection_trace_drop_low() {
         star_count++;
         pos++;
     }
-    TEST_ASSERT(star_count == 4, "Exactly 4 dice marked as selected for l1 (drop 1, keep 4)");
+    TEST_ASSERT(star_count == 1, "Exactly 1 die marked as selected for l1 (keep 1 lowest)");
     
     dice_context_destroy(ctx);
     return 1;
@@ -126,7 +126,7 @@ int main() {
     
     RUN_TEST(test_selection_trace_basic);
     RUN_TEST(test_selection_trace_conditional);
-    RUN_TEST(test_selection_trace_drop_low);
+    RUN_TEST(test_selection_trace_keep_low);
     RUN_TEST(test_selection_trace_no_selection);
     
     printf("All selection trace tests passed!\n");

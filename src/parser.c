@@ -320,15 +320,43 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
     skip_whitespace(state);
     if ((*state->pos == 'k' || *state->pos == 'K' || 
          *state->pos == 'h' || *state->pos == 'H' ||
-         *state->pos == 'l' || *state->pos == 'L') &&
-        (is_digit(*(state->pos + 1)) || *(state->pos + 1) == ' ' || *(state->pos + 1) == '\t' || 
-         *(state->pos + 1) == '(' || *(state->pos + 1) == '\0' || *(state->pos + 1) == '+' || 
-         *(state->pos + 1) == '-' || *(state->pos + 1) == '*' || *(state->pos + 1) == '/')) {
+         *state->pos == 'l' || *state->pos == 'L' ||
+         *state->pos == 'd' || *state->pos == 'D')) {
         
         char op1 = tolower(*state->pos);
+        char op2 = '\0';
+        bool is_two_char = false;
         
-        // Single-character operators only: k, h (keep), l (drop)
-        state->pos += 1; // Skip operator
+        // Check for two-character operators (kh, kl, dh, dl)
+        if ((op1 == 'k' || op1 == 'd') && 
+            (*(state->pos + 1) == 'h' || *(state->pos + 1) == 'H' ||
+             *(state->pos + 1) == 'l' || *(state->pos + 1) == 'L')) {
+            op2 = tolower(*(state->pos + 1));
+            is_two_char = true;
+        }
+        
+        // Check if this is a valid operator sequence
+        bool valid_sequence = false;
+        if (is_two_char) {
+            // Two-character: kh, kl, dh, dl
+            valid_sequence = true;
+        } else {
+            // Single-character: check that next character is not h or l
+            char next_char = *(state->pos + 1);
+            if (next_char != 'h' && next_char != 'H' && next_char != 'l' && next_char != 'L') {
+                valid_sequence = (is_digit(next_char) || next_char == ' ' || next_char == '\t' || 
+                                next_char == '(' || next_char == '\0' || next_char == '+' || 
+                                next_char == '-' || next_char == '*' || next_char == '/');
+            }
+        }
+        
+        if (!valid_sequence) {
+            // This might be part of a longer expression, let the normal dice parsing continue
+            return NULL;
+        }
+        
+        // Skip the operator(s)
+        state->pos += (is_two_char ? 2 : 1);
         
         // Parse the count (can be expression or default to 1)
         skip_whitespace(state);
@@ -380,25 +408,56 @@ static dice_ast_node_t* parse_dice(parser_state_t *state) {
         }
         
         // Determine selection parameters based on new operators
-        char *syntax = arena_alloc(state->ctx, 2);
+        char *syntax = arena_alloc(state->ctx, 3); // Allow for 2 chars + null terminator
         if (!syntax) return NULL;
-        syntax[0] = op1;
-        syntax[1] = '\0';
-        
-        if (op1 == 'k' || op1 == 'h') { // keep high ('k' and 'h' are aliases)
-            selection->select_high = true;
-            selection->is_drop_operation = false;
-            selection->original_syntax = syntax;
-        } else if (op1 == 'l') { // drop low ('l' replaces 'd')
-            selection->select_high = true; // drop low = keep high remaining dice
-            selection->is_drop_operation = true;
-            selection->original_syntax = syntax;
+        if (is_two_char) {
+            syntax[0] = op1;
+            syntax[1] = op2;
+            syntax[2] = '\0';
         } else {
-            snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
-                    "Unknown selection operator: %c", op1);
-            state->ctx->error.has_error = true;
-            return NULL;
+            syntax[0] = op1;
+            syntax[1] = '\0';
         }
+        
+        bool select_high = true;
+        bool is_drop_operation = false;
+        
+        if (is_two_char) {
+            // Two-character operators: kh, kl, dh, dl
+            if (op1 == 'k') {
+                // Keep operations
+                select_high = (op2 == 'h'); // kh = keep high, kl = keep low
+                is_drop_operation = false;
+            } else if (op1 == 'd') {
+                // Drop operations
+                select_high = (op2 == 'l'); // dl = drop low (keep high), dh = drop high (keep low)
+                is_drop_operation = true;
+            }
+        } else {
+            // Single-character operators
+            if (op1 == 'k') { // keep high (default)
+                select_high = true;
+                is_drop_operation = false;
+            } else if (op1 == 'h') { // keep high
+                select_high = true;
+                is_drop_operation = false;
+            } else if (op1 == 'l') { // keep low
+                select_high = false;
+                is_drop_operation = false;
+            } else if (op1 == 'd') { // drop low (default)
+                select_high = true; // drop low = keep high remaining dice
+                is_drop_operation = true;
+            } else {
+                snprintf(state->ctx->error.message, sizeof(state->ctx->error.message),
+                        "Unknown selection operator: %c", op1);
+                state->ctx->error.has_error = true;
+                return NULL;
+            }
+        }
+        
+        selection->select_high = select_high;
+        selection->is_drop_operation = is_drop_operation;
+        selection->original_syntax = syntax;
         
         // Update the node to be a filter operation
         node->data.dice_op.dice_type = DICE_DICE_FILTER;

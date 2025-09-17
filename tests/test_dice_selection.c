@@ -12,13 +12,10 @@ int test_basic_selection_operations() {
     TEST_ASSERT(result.success, "Keep high operation succeeds");
     TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep high result in valid range");
     
-    // Test basic keep low operation (not supported in new syntax - 'l' is for drop)
-    // 'kl' syntax is no longer supported, keep is always high selection
-    
-    // Test basic drop low operation (new 'l' syntax)
+    // Test basic keep low operation (new 'l' syntax)
     result = dice_roll_expression(ctx, "5d6l2");
-    TEST_ASSERT(result.success, "Drop low operation succeeds");
-    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Drop low result in valid range");
+    TEST_ASSERT(result.success, "Keep low operation succeeds");
+    TEST_ASSERT(result.value >= 2 && result.value <= 12, "Keep low result in valid range");
     
     dice_context_destroy(ctx);
     return 1;
@@ -48,7 +45,7 @@ int test_selection_equivalence() {
     dice_rng_vtable_t rng = dice_create_system_rng(12345);
     dice_context_set_rng(ctx, &rng);
     
-    // Test: 4d6k3 should equal 4d6l1 (keep 3 high = drop 1 low)
+    // Test: 4d6k3 and 4d6l1 are different operations (keep 3 high vs keep 1 low)
     dice_eval_result_t result1 = dice_roll_expression(ctx, "4d6k3");
     TEST_ASSERT(result1.success, "4d6k3 succeeds");
     
@@ -58,7 +55,7 @@ int test_selection_equivalence() {
     
     dice_eval_result_t result2 = dice_roll_expression(ctx, "4d6l1");
     TEST_ASSERT(result2.success, "4d6l1 succeeds");
-    TEST_ASSERT(result1.value == result2.value, "4d6k3 equals 4d6l1 with same seed");
+    // Note: These operations are different and will typically produce different results
     
     // Test: 'k' and 'h' are equivalent 
     dice_context_reset(ctx);
@@ -91,19 +88,19 @@ int test_selection_error_handling() {
     
     dice_context_reset(ctx);
     
-    // Test dropping more dice than available - now allowed, result is 0
+    // Test keeping more dice than available - keeps all dice that exist
     result = dice_roll_expression(ctx, "3d6l4");
-    TEST_ASSERT(result.success, "Drop more dice than rolled is now allowed");
-    TEST_ASSERT(result.value == 0, "Drop more result equals 0");
-    TEST_ASSERT(!dice_has_error(ctx), "No error flag set for valid drop operation");
+    TEST_ASSERT(result.success, "Keep more lowest dice than rolled is allowed");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep more lowest result equals sum of all dice");
+    TEST_ASSERT(!dice_has_error(ctx), "No error flag set for valid keep operation");
     
     dice_context_reset(ctx);
     
-    // Test dropping all dice - now allowed, result is 0
+    // Test keeping all dice with 'l' - keeps all 3 dice
     result = dice_roll_expression(ctx, "3d6l3");
-    TEST_ASSERT(result.success, "Drop all dice is now allowed");
-    TEST_ASSERT(result.value == 0, "Drop all result equals 0");
-    TEST_ASSERT(!dice_has_error(ctx), "No error flag set for valid drop all operation");
+    TEST_ASSERT(result.success, "Keep all lowest dice is allowed");
+    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep all lowest result equals sum of all dice");
+    TEST_ASSERT(!dice_has_error(ctx), "No error flag set for valid keep operation");
     
     dice_context_destroy(ctx);
     return 1;
@@ -117,10 +114,10 @@ int test_selection_edge_cases() {
     TEST_ASSERT(result.success, "Keeping all dice works");
     TEST_ASSERT(result.value >= 3 && result.value <= 18, "Keep all result in valid range");
     
-    // Test dropping zero dice (should work like normal roll)
+    // Test keeping zero dice (should return 0)
     result = dice_roll_expression(ctx, "3d6l0");
-    TEST_ASSERT(result.success, "Dropping zero dice works");
-    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Drop zero result in valid range");
+    TEST_ASSERT(result.success, "Keeping zero dice works");
+    TEST_ASSERT(result.value == 0, "Keep zero result equals 0");
     
     // Test single die operations
     result = dice_roll_expression(ctx, "1d20k1");
@@ -128,8 +125,8 @@ int test_selection_edge_cases() {
     TEST_ASSERT(result.value >= 1 && result.value <= 20, "Single die keep result in valid range");
     
     result = dice_roll_expression(ctx, "1d20l0");
-    TEST_ASSERT(result.success, "Single die drop zero works");
-    TEST_ASSERT(result.value >= 1 && result.value <= 20, "Single die drop zero result in valid range");
+    TEST_ASSERT(result.success, "Single die keep zero works");
+    TEST_ASSERT(result.value == 0, "Single die keep zero result equals 0");
     
     dice_context_destroy(ctx);
     return 1;
@@ -166,8 +163,8 @@ int test_shorthand_syntax() {
     TEST_ASSERT(result.value >= 3 && result.value <= 18, "Shorthand keep result in valid range");
     
     result = dice_roll_expression(ctx, "5d6l2");
-    TEST_ASSERT(result.success, "Shorthand 'l' (drop low) operation succeeds");
-    TEST_ASSERT(result.value >= 3 && result.value <= 18, "Shorthand drop result in valid range");
+    TEST_ASSERT(result.success, "Shorthand 'l' (keep low) operation succeeds");
+    TEST_ASSERT(result.value >= 2 && result.value <= 12, "Shorthand keep low result in valid range");
     
     // Test uppercase shorthand
     result = dice_roll_expression(ctx, "4d6K3");
@@ -199,21 +196,21 @@ int test_shorthand_syntax() {
     TEST_ASSERT(result2.success, "3d6h3 succeeds");
     TEST_ASSERT(result1.value == result2.value, "3d6k3 equals 3d6h3 with same seed");
     
-    // Test 'l' (drop) syntax with fixed seeds
+    // Test 'l' (keep low) syntax with fixed seeds
     dice_context_reset(ctx);
     rng = dice_create_system_rng(11111);
     dice_context_set_rng(ctx, &rng);
     
-    result1 = dice_roll_expression(ctx, "8d4l4");  // drop 4 lowest
+    result1 = dice_roll_expression(ctx, "8d4l4");  // keep 4 lowest
     TEST_ASSERT(result1.success, "8d4l4 succeeds");
     
     dice_context_reset(ctx);
     rng = dice_create_system_rng(11111);  // Same seed
     dice_context_set_rng(ctx, &rng);
     
-    result2 = dice_roll_expression(ctx, "8d4k4");  // keep 4 highest (equivalent)
+    result2 = dice_roll_expression(ctx, "8d4k4");  // keep 4 highest (different from l4)
     TEST_ASSERT(result2.success, "8d4k4 succeeds");
-    TEST_ASSERT(result1.value == result2.value, "8d4l4 equals 8d4k4 with same seed");
+    // Note: These operations are different and will typically produce different results
     
     // Test shorthand in complex expressions
     result = dice_roll_expression(ctx, "1d20+4d6k3");
