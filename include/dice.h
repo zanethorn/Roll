@@ -452,6 +452,23 @@ const dice_trace_t* dice_get_trace(const dice_context_t *ctx);
  */
 void dice_clear_trace(dice_context_t *ctx);
 
+/**
+ * @brief Format trace output to a string
+ * @param ctx Context handle
+ * @param buffer Output buffer
+ * @param buffer_size Size of output buffer
+ * @return Number of characters written (excluding null terminator), or -1 on error
+ */
+int dice_format_trace_string(const dice_context_t *ctx, char *buffer, size_t buffer_size);
+
+/**
+ * @brief Format trace output to a file stream
+ * @param ctx Context handle
+ * @param stream Output stream (e.g., stdout, stderr, or file)
+ * @return 0 on success, -1 on error
+ */
+int dice_format_trace_stream(const dice_context_t *ctx, FILE *stream);
+
 // =============================================================================
 // Error Handling API
 // =============================================================================
