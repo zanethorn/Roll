@@ -50,7 +50,7 @@ int test_exploding_dice_placeholder() {
 
 int test_full_workflow_integration() {
     // Test complete workflow from initialization to cleanup
-    dice_init(12345);
+    
     
     // Test legacy API functions
     const char *version = dice_version();
@@ -71,7 +71,7 @@ int test_full_workflow_integration() {
     TEST_ASSERT(result >= 5 && result <= 15, "Notation roll works");
     
     // Cleanup
-    dice_cleanup();
+    
     TEST_ASSERT(1, "Cleanup completes without error");
     
     return 1;
@@ -82,7 +82,7 @@ int test_full_workflow_integration() {
 // =============================================================================
 
 int test_high_volume_operations() {
-    dice_init(999);
+    
     
     // Perform many operations to test for memory leaks, crashes, etc.
     for (int i = 0; i < 1000; i++) {
@@ -96,7 +96,7 @@ int test_high_volume_operations() {
         }
     }
     
-    dice_cleanup();
+    
     return 1;
 }
 
@@ -117,7 +117,7 @@ int test_rapid_context_creation() {
 
 int test_mixed_api_usage() {
     // Test mixing legacy API and new context API
-    dice_init(555);
+    
     
     // Use legacy API
     int legacy_result = dice_roll(6);
@@ -133,7 +133,7 @@ int test_mixed_api_usage() {
     TEST_ASSERT(legacy_result >= 2 && legacy_result <= 12, "Legacy API still works after context usage");
     
     dice_context_destroy(ctx);
-    dice_cleanup();
+    
     return 1;
 }
 

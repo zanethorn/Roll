@@ -33,20 +33,9 @@ int test_dice_version() {
     return 1;
 }
 
-int test_dice_init() {
-    // Test initialization with seed
-    dice_init(12345);
-    TEST_ASSERT(1, "dice_init() with seed completes");
-    
-    // Test initialization with time-based seed
-    dice_init(0);
-    TEST_ASSERT(1, "dice_init() with time-based seed completes");
-    
-    return 1;
-}
+
 
 int test_dice_roll() {
-    dice_init(12345); // Use fixed seed for reproducible results
     
     // Test valid rolls
     int result = dice_roll(6);
@@ -66,7 +55,6 @@ int test_dice_roll() {
 }
 
 int test_dice_roll_multiple() {
-    dice_init(12345);
     
     // Test valid multiple rolls
     int result = dice_roll_multiple(3, 6);
@@ -87,7 +75,6 @@ int test_dice_roll_multiple() {
 }
 
 int test_dice_roll_individual() {
-    dice_init(12345);
     int results[10];
     
     // Test valid individual rolls
@@ -110,7 +97,6 @@ int test_dice_roll_individual() {
 }
 
 int test_dice_roll_notation() {
-    dice_init(12345);
     
     // Test basic notation
     int result = dice_roll_notation("1d6");
@@ -194,20 +180,30 @@ int test_parser_api() {
     return 1;
 }
 
-int test_rng_decoupling() {
-    // Test that we can use custom RNG with legacy API
-    dice_rng_vtable_t custom_rng = dice_create_system_rng(54321);
+int test_rng_functionality() {
+    // Test that RNG functions work and produce different results
+    dice_rng_vtable_t rng1 = dice_create_system_rng(12345);
+    dice_rng_vtable_t rng2 = dice_create_system_rng(54321);
     
-    dice_set_rng(&custom_rng);
-    const dice_rng_vtable_t *current_rng = dice_get_rng();
-    TEST_ASSERT(current_rng != NULL, "dice_get_rng() returns non-null");
+    // Test that different seeds produce different results (probabilistically)
+    int differences = 0;
+    for (int i = 0; i < 10; i++) {
+        int result1 = rng1.roll(rng1.state, 20);
+        int result2 = rng2.roll(rng2.state, 20);
+        if (result1 != result2) {
+            differences++;
+        }
+    }
     
-    // Test that dice operations use the custom RNG
-    int result1 = dice_roll(6);
-    TEST_ASSERT(result1 >= 1 && result1 <= 6, "dice_roll() with custom RNG works");
+    TEST_ASSERT(differences > 0, "Different seeds produce different results");
     
-    // Reset to default to avoid affecting other tests
-    dice_init(12345);
+    // Test that dice functions work
+    int result = dice_roll(6);
+    TEST_ASSERT(result >= 1 && result <= 6, "dice_roll() produces valid results");
+    
+    // Cleanup RNG states
+    if (rng1.cleanup) rng1.cleanup(rng1.state);
+    if (rng2.cleanup) rng2.cleanup(rng2.state);
     
     return 1;
 }
@@ -351,21 +347,17 @@ int main() {
     printf("Running dice library tests...\n\n");
     
     RUN_TEST(test_dice_version);
-    RUN_TEST(test_dice_init);
     RUN_TEST(test_dice_roll);
     RUN_TEST(test_dice_roll_multiple);
     RUN_TEST(test_dice_roll_individual);
     RUN_TEST(test_dice_roll_notation);
     RUN_TEST(test_parser_api);
-    RUN_TEST(test_rng_decoupling);
+    RUN_TEST(test_rng_functionality);
     RUN_TEST(test_new_architecture);
     RUN_TEST(test_exploding_dice);
     RUN_TEST(test_custom_dice);
     
     printf("All tests passed!\n");
-    
-    // Cleanup
-    dice_cleanup();
     
     return 0;
 }

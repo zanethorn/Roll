@@ -39,6 +39,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **C99 Standard**: Maintains C99 compatibility for broad compiler support
 - **Thread Safety**: New context-based API is fully thread-safe
 
+### Architecture
+- **Modular Design**: Separated RNG, memory management, and custom dice into dedicated modules
+- **No Static Variables**: Removed all global state from core library
+- **Clean Separation**: Clear distinction between public API and internal implementation
+- **Stateless Simple API**: Simple functions create temporary contexts for convenience
+
 ---
 
 ## [1.0.0] - 2024-12-XX

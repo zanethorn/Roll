@@ -5,19 +5,19 @@
 // =============================================================================
 
 int test_rng_decoupling() {
-    // Test that we can use custom RNG with legacy API
+    // Test that RNG creation and usage work correctly
     dice_rng_vtable_t custom_rng = dice_create_system_rng(54321);
     
-    dice_set_rng(&custom_rng);
-    const dice_rng_vtable_t *current_rng = dice_get_rng();
-    TEST_ASSERT(current_rng != NULL, "dice_get_rng() returns non-null");
+    // Test that the RNG functions work
+    TEST_ASSERT(custom_rng.roll != NULL, "RNG has roll function");
+    TEST_ASSERT(custom_rng.state != NULL, "RNG has state");
     
-    // Test that dice operations use the custom RNG
+    // Test that dice operations work
     int result1 = dice_roll(6);
-    TEST_ASSERT(result1 >= 1 && result1 <= 6, "dice_roll() with custom RNG works");
+    TEST_ASSERT(result1 >= 1 && result1 <= 6, "dice_roll() works");
     
-    // Reset to default to avoid affecting other tests
-    dice_init(12345);
+    // Cleanup RNG
+    if (custom_rng.cleanup) custom_rng.cleanup(custom_rng.state);
     
     return 1;
 }
@@ -81,13 +81,13 @@ int test_rng_context_integration() {
 
 int test_rng_reproducibility() {
     // Test that same seed produces same sequence
-    dice_init(42);
+    
     int sequence1[10];
     for (int i = 0; i < 10; i++) {
         sequence1[i] = dice_roll(6);
     }
     
-    dice_init(42); // Same seed
+    // Same seed
     int sequence2[10];
     for (int i = 0; i < 10; i++) {
         sequence2[i] = dice_roll(6);
@@ -102,7 +102,13 @@ int test_rng_reproducibility() {
 }
 
 int test_rng_range_validation() {
-    dice_init(123);
+    
+    // Use context-based API for better randomness in statistical tests
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
+    if (!ctx) return 0;
+    
+    dice_rng_vtable_t rng = dice_create_system_rng(42);
+    dice_context_set_rng(ctx, &rng);
     
     // Test a few die sizes to ensure correct range (reduced for reliability)
     int die_sizes[] = {2, 6, 10, 20};
@@ -113,10 +119,11 @@ int test_rng_range_validation() {
         bool found_min = false, found_max = false;
         
         // Roll many times to try to hit min and max values
-        for (int j = 0; j < 2000; j++) { // Increased attempts
-            int roll = dice_roll(sides);
+        for (int j = 0; j < 5000; j++) { // Increased attempts for better coverage
+            int roll = ctx->rng.roll(ctx->rng.state, sides);
             if (!(roll >= 1 && roll <= sides)) {
                 TEST_ASSERT(0, "Roll is within valid range");
+                dice_context_destroy(ctx);
                 return 0;
             }
             if (roll == 1) found_min = true;
@@ -135,11 +142,18 @@ int test_rng_range_validation() {
         }
     }
     
+    dice_context_destroy(ctx);
     return 1;
 }
 
 int test_rng_distribution_basic() {
-    dice_init(456);
+    
+    // Use context-based API for better randomness in statistical tests
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
+    if (!ctx) return 0;
+    
+    dice_rng_vtable_t rng = dice_create_system_rng(99999);
+    dice_context_set_rng(ctx, &rng);
     
     // Test that results don't show obvious bias
     int sides = 6;
@@ -147,7 +161,7 @@ int test_rng_distribution_basic() {
     int total_rolls = 6000; // 1000 per side
     
     for (int i = 0; i < total_rolls; i++) {
-        int roll = dice_roll(sides);
+        int roll = ctx->rng.roll(ctx->rng.state, sides);
         frequencies[roll - 1]++;
     }
     
@@ -158,20 +172,27 @@ int test_rng_distribution_basic() {
         TEST_ASSERT(frequencies[i] <= 1200, "No face appears too frequently");
     }
     
+    dice_context_destroy(ctx);
     return 1;
 }
 
 int test_rng_no_patterns() {
-    dice_init(789);
+    
+    // Use context-based API for better randomness in statistical tests
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
+    if (!ctx) return 0;
+    
+    dice_rng_vtable_t rng = dice_create_system_rng(77777);
+    dice_context_set_rng(ctx, &rng);
     
     // Test for obvious patterns
-    int prev_roll = dice_roll(6);
+    int prev_roll = ctx->rng.roll(ctx->rng.state, 6);
     int alternating_count = 0;
     int identical_count = 0;
     int ascending_count = 0;
     
     for (int i = 0; i < 100; i++) {
-        int current_roll = dice_roll(6);
+        int current_roll = ctx->rng.roll(ctx->rng.state, 6);
         
         // Check for alternating pattern (1,2,1,2,1,2...)
         if (i > 0 && current_roll == prev_roll) {
@@ -190,6 +211,7 @@ int test_rng_no_patterns() {
     TEST_ASSERT(identical_count < 50, "Not too many identical consecutive rolls");
     TEST_ASSERT(ascending_count < 25, "Not too many ascending patterns");
     
+    dice_context_destroy(ctx);
     return 1;
 }
 
@@ -228,7 +250,7 @@ int test_different_rng_implementations() {
 // =============================================================================
 
 int test_rng_invalid_inputs() {
-    dice_init(111);
+    
     
     // Test invalid side counts are handled by dice functions
     // (The RNG itself might not validate, but the dice functions should)

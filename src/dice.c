@@ -2,33 +2,9 @@
 #include "internal.h"
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <stdio.h>
 
 #define DICE_VERSION "2.0.0"
-
-// =============================================================================
-// Arena Allocator Implementation
-// =============================================================================
-
-void* arena_alloc(dice_context_t *ctx, size_t size) {
-    // Align to 8-byte boundary
-    size = (size + 7) & ~7;
-    
-    if (ctx->arena_used + size > ctx->arena_size) {
-        snprintf(ctx->error.message, sizeof(ctx->error.message), 
-                "Arena allocator out of memory: requested %zu, available %zu", 
-                size, ctx->arena_size - ctx->arena_used);
-        ctx->error.code = -1;
-        ctx->error.has_error = true;
-        return NULL;
-    }
-    
-    void *ptr = (char*)ctx->arena + ctx->arena_used;
-    ctx->arena_used += size;
-    memset(ptr, 0, size);
-    return ptr;
-}
 
 // =============================================================================
 // Context Management
@@ -141,58 +117,6 @@ void dice_clear_error(dice_context_t *ctx) {
 }
 
 // =============================================================================
-// RNG Implementations
-// =============================================================================
-
-// System RNG state
-typedef struct {
-    uint64_t seed;
-} system_rng_state_t;
-
-static int system_rng_init(void *state, uint64_t seed) {
-    system_rng_state_t *s = (system_rng_state_t*)state;
-    s->seed = seed ? seed : (uint64_t)time(NULL);
-    srand((unsigned int)s->seed);
-    return 0;
-}
-
-static int system_rng_roll(void *state, int sides) {
-    (void)state; // unused
-    if (sides <= 0) return -1;
-    return (rand() % sides) + 1;
-}
-
-static uint64_t system_rng_rand(void *state, uint64_t max) {
-    (void)state; // unused
-    if (max == 0) return 0;
-    return rand() % max;
-}
-
-static void system_rng_cleanup(void *state) {
-    free(state);
-}
-
-dice_rng_vtable_t dice_create_system_rng(uint64_t seed) {
-    system_rng_state_t *state = malloc(sizeof(system_rng_state_t));
-    
-    dice_rng_vtable_t rng = {
-        .init = system_rng_init,
-        .roll = system_rng_roll,
-        .rand = system_rng_rand,
-        .cleanup = system_rng_cleanup,
-        .state = state
-    };
-    
-    rng.init(state, seed);
-    return rng;
-}
-
-// Placeholder for xoshiro - just use system RNG for now
-dice_rng_vtable_t dice_create_xoshiro_rng(uint64_t seed) {
-    return dice_create_system_rng(seed);
-}
-
-// =============================================================================
 // Utility Functions
 // =============================================================================
 
@@ -207,195 +131,109 @@ dice_policy_t dice_default_policy(void) {
     return policy;
 }
 
-// =============================================================================
-// Legacy API - Global context for backward compatibility
-// =============================================================================
-
-// Global context for backward compatibility (not thread-safe, but maintains API compatibility)
-static dice_context_t *legacy_context = NULL;
-
-static dice_context_t* get_legacy_context(void) {
-    if (!legacy_context) {
-        // Create a default context with 1MB arena and all features
-        legacy_context = dice_context_create(1024 * 1024, DICE_FEATURE_ALL);
-    }
-    return legacy_context;
+const char* dice_version(void) {
+    return DICE_VERSION;
 }
 
-void dice_init(uint32_t seed) {
-    dice_context_t *ctx = get_legacy_context();
-    if (!ctx) return;
-    
-    // Set system RNG with specified seed
-    dice_rng_vtable_t rng = dice_create_system_rng(seed ? seed : 0);
-    dice_context_set_rng(ctx, &rng);
-}
+// =============================================================================
+// Simple Wrapper Functions (No Static State)
+// =============================================================================
 
 int dice_roll(int sides) {
-    if (sides <= 0) return -1;
-    
-    dice_context_t *ctx = get_legacy_context();
-    if (!ctx) return -1;
-    
-    return ctx->rng.roll(ctx->rng.state, sides);
+    return dice_roll_multiple(1, sides);
 }
 
 int dice_roll_multiple(int count, int sides) {
     if (count <= 0 || sides <= 0) return -1;
     
-    dice_context_t *ctx = get_legacy_context();
+    // Create temporary context for this operation
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
     if (!ctx) return -1;
+    
+    // Use time-based seed for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(0);
+    dice_context_set_rng(ctx, &rng);
     
     int sum = 0;
     for (int i = 0; i < count; i++) {
         int roll = ctx->rng.roll(ctx->rng.state, sides);
-        if (roll < 0) return -1;
+        if (roll < 0) {
+            dice_context_destroy(ctx);
+            return -1;
+        }
         sum += roll;
     }
+    
+    dice_context_destroy(ctx);
     return sum;
 }
 
 int dice_roll_individual(int count, int sides, int *results) {
     if (count <= 0 || sides <= 0 || !results) return -1;
     
-    dice_context_t *ctx = get_legacy_context();
+    // Create temporary context for this operation
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
     if (!ctx) return -1;
+    
+    // Use time-based seed for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(0);
+    dice_context_set_rng(ctx, &rng);
     
     int sum = 0;
     for (int i = 0; i < count; i++) {
         int roll = ctx->rng.roll(ctx->rng.state, sides);
-        if (roll < 0) return -1;
+        if (roll < 0) {
+            dice_context_destroy(ctx);
+            return -1;
+        }
         results[i] = roll;
         sum += roll;
     }
+    
+    dice_context_destroy(ctx);
     return sum;
 }
 
 int dice_roll_notation(const char *dice_notation) {
     if (!dice_notation) return -1;
     
-    dice_context_t *ctx = get_legacy_context();
+    // Create temporary context for this operation
+    dice_context_t *ctx = dice_context_create(4096, DICE_FEATURE_ALL);
     if (!ctx) return -1;
     
-    // Clear any previous errors
-    dice_clear_error(ctx);
+    // Use time-based seed for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(0);
+    dice_context_set_rng(ctx, &rng);
     
-    // Use the new architecture
     dice_eval_result_t result = dice_roll_expression(ctx, dice_notation);
     
-    if (!result.success || dice_has_error(ctx)) {
-        return -1;
+    int ret_val = -1;
+    if (result.success && !dice_has_error(ctx)) {
+        ret_val = (int)result.value;
     }
     
-    return (int)result.value;
+    dice_context_destroy(ctx);
+    return ret_val;
 }
 
-const char* dice_version(void) {
-    return DICE_VERSION;
-}
-
-void dice_set_rng(const dice_rng_vtable_t *rng_vtable) {
-    if (!rng_vtable) return;
+int dice_roll_quick(const char *dice_notation, uint32_t seed) {
+    if (!dice_notation) return -1;
     
-    dice_context_t *ctx = get_legacy_context();
-    if (!ctx) return;
+    // Create temporary context for this operation
+    dice_context_t *ctx = dice_context_create(4096, DICE_FEATURE_ALL);
+    if (!ctx) return -1;
     
-    dice_context_set_rng(ctx, rng_vtable);
-}
-
-const dice_rng_vtable_t* dice_get_rng(void) {
-    dice_context_t *ctx = get_legacy_context();
-    if (!ctx) return NULL;
+    // Use provided seed or time-based for randomness
+    dice_rng_vtable_t rng = dice_create_system_rng(seed);
+    dice_context_set_rng(ctx, &rng);
     
-    return &ctx->rng;
-}
-
-void dice_cleanup(void) {
-    if (legacy_context) {
-        dice_context_destroy(legacy_context);
-        legacy_context = NULL;
-    }
-}
-
-// =============================================================================
-// Custom Dice Implementation
-// =============================================================================
-
-dice_custom_side_t dice_custom_side(int64_t value, const char *label) {
-    dice_custom_side_t side;
-    side.value = value;
-    side.label = label ? strdup(label) : NULL;
-    return side;
-}
-
-int dice_register_custom_die(dice_context_t *ctx, const char *name, 
-                             const dice_custom_side_t *sides, size_t side_count) {
-    if (!ctx || !name || !sides || side_count == 0) return -1;
+    dice_eval_result_t result = dice_roll_expression(ctx, dice_notation);
     
-    // Check if we need to expand the registry
-    if (ctx->custom_dice.count >= ctx->custom_dice.capacity) {
-        size_t new_capacity = ctx->custom_dice.capacity == 0 ? 4 : ctx->custom_dice.capacity * 2;
-        dice_custom_die_t *new_dice = realloc(ctx->custom_dice.dice, 
-                                              new_capacity * sizeof(dice_custom_die_t));
-        if (!new_dice) {
-            snprintf(ctx->error.message, sizeof(ctx->error.message),
-                    "Failed to allocate memory for custom dice registry");
-            ctx->error.has_error = true;
-            return -1;
-        }
-        ctx->custom_dice.dice = new_dice;
-        ctx->custom_dice.capacity = new_capacity;
+    int ret_val = -1;
+    if (result.success && !dice_has_error(ctx)) {
+        ret_val = (int)result.value;
     }
     
-    // Create the custom die
-    dice_custom_die_t *die = &ctx->custom_dice.dice[ctx->custom_dice.count];
-    die->name = strdup(name);
-    die->side_count = side_count;
-    die->sides = malloc(side_count * sizeof(dice_custom_side_t));
-    if (!die->sides) {
-        free((void*)die->name);
-        snprintf(ctx->error.message, sizeof(ctx->error.message),
-                "Failed to allocate memory for custom die sides");
-        ctx->error.has_error = true;
-        return -1;
-    }
-    
-    // Copy sides
-    for (size_t i = 0; i < side_count; i++) {
-        die->sides[i].value = sides[i].value;
-        die->sides[i].label = sides[i].label ? strdup(sides[i].label) : NULL;
-    }
-    
-    ctx->custom_dice.count++;
-    
-    return 0;
-}
-
-const dice_custom_die_t* dice_lookup_custom_die(const dice_context_t *ctx, const char *name) {
-    if (!ctx || !name) return NULL;
-    
-    for (size_t i = 0; i < ctx->custom_dice.count; i++) {
-        if (strcmp(ctx->custom_dice.dice[i].name, name) == 0) {
-            return &ctx->custom_dice.dice[i];
-        }
-    }
-    
-    return NULL;
-}
-
-void dice_clear_custom_dice(dice_context_t *ctx) {
-    if (!ctx) return;
-    
-    for (size_t i = 0; i < ctx->custom_dice.count; i++) {
-        dice_custom_die_t *die = &ctx->custom_dice.dice[i];
-        free((void*)die->name);
-        
-        // Free labels from sides
-        for (size_t j = 0; j < die->side_count; j++) {
-            free((void*)die->sides[j].label);
-        }
-        free(die->sides);
-    }
-    
-    ctx->custom_dice.count = 0;
+    dice_context_destroy(ctx);
+    return ret_val;
 }

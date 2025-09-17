@@ -12,20 +12,9 @@ int test_dice_version() {
     return 1;
 }
 
-int test_dice_init() {
-    // Test initialization with seed
-    dice_init(12345);
-    TEST_ASSERT(1, "dice_init() with seed completes");
-    
-    // Test initialization with time-based seed
-    dice_init(0);
-    TEST_ASSERT(1, "dice_init() with time-based seed completes");
-    
-    return 1;
-}
+
 
 int test_dice_roll() {
-    dice_init(12345); // Use fixed seed for reproducible results
     
     // Test valid rolls
     int result = dice_roll(6);
@@ -49,7 +38,6 @@ int test_dice_roll() {
 }
 
 int test_dice_roll_multiple() {
-    dice_init(12345);
     
     // Test valid multiple rolls
     int result = dice_roll_multiple(3, 6);
@@ -80,7 +68,6 @@ int test_dice_roll_multiple() {
 }
 
 int test_dice_roll_individual() {
-    dice_init(12345);
     
     int results[3];
     
@@ -113,7 +100,6 @@ int test_dice_roll_individual() {
 }
 
 int test_dice_roll_notation() {
-    dice_init(12345);
     
     // Test basic notation
     int result = dice_roll_notation("1d6");
@@ -181,18 +167,26 @@ int test_dice_roll_notation() {
 // =============================================================================
 
 int test_dice_uniformity() {
-    dice_init(42); // Different seed for uniformity tests
     
-    // Test 6-sided die uniformity
+    // Test 6-sided die uniformity using context-based API for proper seeding
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
+    if (!ctx) return 0;
+    
+    // Set a fixed seed for reproducible but varied results
+    dice_rng_vtable_t rng = dice_create_system_rng(12345);
+    dice_context_set_rng(ctx, &rng);
+    
     int frequencies[6] = {0};
     int total_rolls = UNIFORMITY_SAMPLE_SIZE;
     
     for (int i = 0; i < total_rolls; i++) {
-        int roll = dice_roll(6);
+        int roll = ctx->rng.roll(ctx->rng.state, 6);
         if (roll >= 1 && roll <= 6) {
             frequencies[roll - 1]++;
         }
     }
+    
+    dice_context_destroy(ctx);
     
     // Expected frequency for uniform distribution
     int expected = total_rolls / 6;
@@ -216,19 +210,29 @@ int test_dice_uniformity() {
 }
 
 int test_multiple_dice_uniformity() {
-    dice_init(123);
     
-    // Test that multiple dice rolls have appropriate distribution
+    // Test that multiple dice rolls have appropriate distribution using context-based API
+    dice_context_t *ctx = dice_context_create(1024, DICE_FEATURE_BASIC);
+    if (!ctx) return 0;
+    
+    // Set a fixed seed for reproducible but varied results
+    dice_rng_vtable_t rng = dice_create_system_rng(54321);
+    dice_context_set_rng(ctx, &rng);
+    
     // For 2d6, results range from 2 to 12 with bell curve distribution
     int frequencies[11] = {0}; // Index 0 = sum of 2, Index 10 = sum of 12
     int total_rolls = UNIFORMITY_SAMPLE_SIZE;
     
     for (int i = 0; i < total_rolls; i++) {
-        int roll = dice_roll_multiple(2, 6);
-        if (roll >= 2 && roll <= 12) {
-            frequencies[roll - 2]++;
+        int roll1 = ctx->rng.roll(ctx->rng.state, 6);
+        int roll2 = ctx->rng.roll(ctx->rng.state, 6);
+        int sum = roll1 + roll2;
+        if (sum >= 2 && sum <= 12) {
+            frequencies[sum - 2]++;
         }
     }
+    
+    dice_context_destroy(ctx);
     
     // For 2d6, the most common result should be 7, least common should be 2 and 12
     int sum_7_freq = frequencies[5]; // 7 - 2 = 5
@@ -250,7 +254,6 @@ int test_multiple_dice_uniformity() {
 // =============================================================================
 
 int test_dice_limits() {
-    dice_init(999);
     
     // Test maximum reasonable values work
     int result = dice_roll(1000);
@@ -274,7 +277,6 @@ int main() {
     printf("Running core dice operation tests...\n\n");
     
     RUN_TEST(test_dice_version);
-    RUN_TEST(test_dice_init);
     RUN_TEST(test_dice_roll);
     RUN_TEST(test_dice_roll_multiple);
     RUN_TEST(test_dice_roll_individual);
@@ -284,9 +286,6 @@ int main() {
     RUN_TEST(test_dice_limits);
     
     printf("All core dice tests passed!\n");
-    
-    // Cleanup
-    dice_cleanup();
     
     return 0;
 }

@@ -269,14 +269,8 @@ typedef struct {
 } dice_eval_result_t;
 
 // =============================================================================
-// Public API - Basic Dice Operations
+// Simple API - Convenience Functions
 // =============================================================================
-
-/**
- * @brief Initialize the dice library with a seed for random number generation
- * @param seed Random seed value (use 0 for time-based seed)
- */
-void dice_init(uint32_t seed);
 
 /**
  * @brief Roll a single die with specified number of sides
@@ -310,27 +304,19 @@ int dice_roll_individual(int count, int sides, int *results);
 int dice_roll_notation(const char *dice_notation);
 
 /**
+ * @brief Instant dice rolling helper - creates context, evaluates expression, and cleans up
+ * @param dice_notation String representing dice notation
+ * @param seed Random seed (use 0 for time-based randomness)
+ * @return Result of the dice roll, or -1 on error
+ * @note This is a convenience function that handles all context management internally
+ */
+int dice_roll_quick(const char *dice_notation, uint32_t seed);
+
+/**
  * @brief Get the version of the dice library
  * @return Version string
  */
 const char* dice_version(void);
-
-/**
- * @brief Set a custom RNG for the library (optional)
- * @param rng_vtable Custom RNG vtable
- */
-void dice_set_rng(const dice_rng_vtable_t *rng_vtable);
-
-/**
- * @brief Get the current RNG vtable
- * @return Current RNG vtable (read-only)
- */
-const dice_rng_vtable_t* dice_get_rng(void);
-
-/**
- * @brief Cleanup dice library resources
- */
-void dice_cleanup(void);
 
 // =============================================================================
 // Advanced API - Context Management

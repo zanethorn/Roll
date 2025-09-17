@@ -36,15 +36,39 @@ make
 
 ### C API Usage
 
+**Simple API:**
 ```c
 #include "dice.h"
 
-dice_init(12345);  // Optional seed
-int result = dice_roll(6);                    // Roll 1d6
-int sum = dice_roll_multiple(3, 6);           // Roll 3d6
-int total = dice_roll_notation("3d6+2");      // Parse notation
-dice_cleanup();
+// Simple dice rolling
+int result = dice_roll(6);                      // Roll 1d6
+int sum = dice_roll_multiple(3, 6);             // Roll 3d6
+int total = dice_roll_notation("3d6+2");        // Parse notation
+int quick = dice_roll_quick("2d8+1", 12345);   // Roll with seed
 ```
+
+**Context-Based API (Advanced):**
+```c
+#include "dice.h"
+
+// Create a context for dice operations
+dice_context_t *ctx = dice_context_create(1024 * 1024, DICE_FEATURE_ALL);
+
+// Set custom seed (optional)
+dice_rng_vtable_t rng = dice_create_system_rng(12345);
+dice_context_set_rng(ctx, &rng);
+
+// Roll dice using expressions
+dice_eval_result_t result = dice_roll_expression(ctx, "3d6+2");
+if (result.success) {
+    printf("Result: %lld\n", (long long)result.value);
+}
+
+// Clean up
+dice_context_destroy(ctx);
+```
+
+The simple API functions create temporary contexts internally for ease of use, while the context-based API provides full control over memory, RNG, and advanced features.
 
 ### Language Bindings
 
