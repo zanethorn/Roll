@@ -25,6 +25,9 @@ target_link_libraries(test_integration dice)
 add_executable(test_dice_selection test_dice_selection.c)
 target_link_libraries(test_dice_selection dice)
 
+add_executable(test_conditional_selection test_conditional_selection.c)
+target_link_libraries(test_conditional_selection dice)
+
 add_executable(test_visitor test_visitor.c)
 target_link_libraries(test_visitor dice)
 
@@ -41,5 +44,6 @@ add_test(NAME rng_tests COMMAND test_rng)
 add_test(NAME memory_tests COMMAND test_memory)
 add_test(NAME integration_tests COMMAND test_integration)
 add_test(NAME dice_selection_tests COMMAND test_dice_selection)
+add_test(NAME conditional_selection_tests COMMAND test_conditional_selection)
 add_test(NAME visitor_tests COMMAND test_visitor)
 add_test(NAME legacy_dice_tests COMMAND test_dice)

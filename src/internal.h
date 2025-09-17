@@ -38,6 +38,16 @@ void trace_atomic_roll(dice_context_t *ctx, int sides, int result);
  */
 int64_t evaluate_dice_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection);
 
+/**
+ * @brief Evaluate dice conditional selection operations (s>N, s<N, etc.)
+ * @param ctx Context handle for evaluation and tracing
+ * @param count Number of dice to roll
+ * @param sides Number of sides on each die
+ * @param selection Conditional selection parameters (comparison operator, value)
+ * @return Sum of dice values that match the condition
+ */
+int64_t evaluate_dice_conditional_selection(dice_context_t *ctx, int64_t count, int sides, const dice_selection_t *selection);
+
 #ifdef __cplusplus
 }
 #endif
